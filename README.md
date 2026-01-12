@@ -1,4 +1,4 @@
-# Statistics-program
+# Scientific Figure Generator: Lightweight Tool for Fast, Customizable Data Visualization and Analysis
 A statistical program with good quality for exported pictures. The plots are costumizable and easy to use.  
 
 # LQ — Data Analysis Program
