@@ -1,4 +1,4 @@
-# Statistics-program-for-medicine
+# Statistics-program
 A statistical program with good quality for exported pictures. The plots are costumizable and easy to use.  
 
 # LQ — Data Analysis Program
