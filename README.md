@@ -12,7 +12,7 @@ LQ is a Python-based data analysis tool with a GUI for statistical tests and vis
 - Friedman test (nonparametric repeated measures)
 - Mann–Whitney U and Wilcoxon paired tests
 - Descriptive statistics with confidence intervals
-- Multiple plot types: Bar + scatter, Box, Violin, Strip, Mean ± CI, Line ± CI, Line (means), Area (quartiles stacked), Lines (series), Areas (series), Regression (series), Regression (global), Pie chart
+- Multiple plot types: Bar + scatter, Strip, Mean ± CI, Line ± CI, Line (means), Area (quartiles stacked), Lines (series), Areas (series), Regression (series), Regression (global), Pie chart
 
 # Windows
 1. Install Python 3.10+.
