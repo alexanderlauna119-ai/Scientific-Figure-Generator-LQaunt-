@@ -1510,7 +1510,9 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
         for i, cat in enumerate(categories):
             ax.bar(x[i], means[i], width=bar_width, color=colors_cat.get(cat,"#999999"),
                    edgecolor="#444444", linewidth=1.4, alpha=0.80, zorder=1)
+
         ax.errorbar(x, means, yerr=sems, fmt="none", ecolor="gray", elinewidth=1.5, capsize=6, capthick=1.5, zorder=2)
+
         rng = np.random.default_rng(42)
         for i, cat in enumerate(categories):
             yvals = np.array(data_dict[cat], dtype=float)
@@ -1518,6 +1520,11 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
             ax.scatter(np.full_like(yvals, x[i], dtype=float) + jitter, yvals,
                        s=28, color=colors_cat.get(cat,"#999999"),
                        edgecolor="#444444", linewidths=0.6, alpha=1.0, zorder=3)
+
+    # Set x-axis ticks and labels once, after plotting
+        ax.set_xticks(x)
+        ax.set_xticklabels(categories, rotation=45, ha="right", fontsize=8)
+
 
     # Axis label and ticks/brackets
     if ptype == "Pie chart":
