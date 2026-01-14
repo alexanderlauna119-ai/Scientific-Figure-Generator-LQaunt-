@@ -1056,7 +1056,7 @@ def compute_brackets_default_only(
         comparisons.append({"x1": float(x[i1]), "x2": float(x[i2]), "base_y": base_y,
                             "text": format_sig_marker(p_adj, sig_marker_mode)})
     # Prefer wider spans first (helps reduce overlap)
-    comparisons.sort(key=lambda d: abs(d["x2"] - d["x1"]), reverse=True)
+    comparisons.sort(key=lambda d: abs(d["x2"] - d["x1"]))
     brackets = []
     def _x_overlaps(b1, b2, eps=1e-9):
         lo1, hi1 = min(b1["x1"], b1["x2"]), max(b1["x1"], b1["x2"])
@@ -1124,7 +1124,7 @@ def compute_brackets_from_selection(
         candidates.append({"x1": float(x[i1]), "x2": float(x[i2]), "base_y": base_y,
                            "text": format_sig_marker(p_adj, sig_marker_mode)})
     # Prefer wider spans first
-    candidates.sort(key=lambda d: abs(d["x2"] - d["x1"]), reverse=True)
+    candidates.sort(key=lambda d: abs(d["x2"] - d["x1"]))
     brackets = []
     def _x_overlaps(b1, b2, eps=1e-9):
         lo1, hi1 = min(b1["x1"], b1["x2"]), max(b1["x1"], b1["x2"])
