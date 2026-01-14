@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy import stats
-from matplotlib.ticker import ScalarFormatter
+from matplotlib.ticker import ScalarFormatter, FuncFormatter
 
 # deps
 try:
@@ -194,6 +194,8 @@ def ensure_colors_for_keys(keys: List[str], colors: Dict[str, str]) -> Dict[str,
 # Stats, formatting, tables, plots
 def adjust_pvals(pvals: List[float], method: str = "holm") -> np.ndarray:
     pvals = np.asarray(pvals, dtype=float)
+    if method is None or str(method).strip().lower() == 'none':
+        return pvals
     m = len(pvals)
     if m == 0:
         return pvals
@@ -360,6 +362,32 @@ def _make_table_figure(df, title: str, max_height_in=16.0):
     fig_w = max(6.0, 1.2 * max(1, cols))
     fig_h = min(max(2.4, 0.6 + 0.36 * max(1, rows)), max_height_in)
     fig, ax = plt.subplots(figsize=(fig_w, fig_h))
+
+    # Add scroll-wheel zoom for y-axis (except Pie chart)
+    def on_scroll(event):
+        if event.inaxes != ax:
+            return
+        if ptype == "Pie chart":
+            return  # Disable zoom for Pie chart
+        cur_ylim = ax.get_ylim()
+        y_min, y_max = cur_ylim
+        range_y = (y_max - y_min)
+        # Zoom factor
+        base_scale = 1.1
+        if event.button == 'up':
+            scale_factor = 1 / base_scale
+        elif event.button == 'down':
+            scale_factor = base_scale
+        else:
+            scale_factor = 1
+        new_range = range_y * scale_factor
+        center = event.ydata if event.ydata is not None else (y_min + y_max) / 2
+        new_ymin = center - new_range / 2
+        new_ymax = center + new_range / 2
+        ax.set_ylim(new_ymin, new_ymax)
+        ax.figure.canvas.draw_idle()
+
+    fig.canvas.mpl_connect('scroll_event', on_scroll)
     ax.axis("off")
     ax.set_title(title, fontsize=12, pad=8)
     str_vals = [[str(v) for v in row] for row in data.values]
@@ -825,11 +853,11 @@ def plot_mean_ci(ax, categories, means, ci_half, colors, bar=False, line=False, 
         for i, cat in enumerate(categories):
             ax.bar(x[i], means[i], width=0.70, color=colors.get(cat, "#999999"),
                    edgecolor="#444444", linewidth=1.4, alpha=0.80, zorder=1)
-        ax.errorbar(x, means, yerr=ci_half, fmt="none", ecolor="black",
+        ax.errorbar(x, means, yerr=ci_half, fmt="None", ecolor="black",
                     elinewidth=1.5, capsize=6, capthick=1.5, zorder=2, label=ci_label)
     elif line:
         ax.plot(x, means, color="#333333", marker="o", lw=1.8, zorder=2, label="Mean")
-        ax.errorbar(x, means, yerr=ci_half, fmt="none", ecolor="#333333",
+        ax.errorbar(x, means, yerr=ci_half, fmt="None", ecolor="#333333",
                     elinewidth=1.2, capsize=5, capthick=1.2, zorder=2, label=ci_label)
     else:
         ax.errorbar(x, means, yerr=ci_half, fmt="o", color="#333333",
@@ -1110,6 +1138,25 @@ def compute_brackets_from_selection(
     highest_bracket_y = max([b["y"] for b in brackets], default=max(bar_tops)) + line_h
     required_ymax = highest_bracket_y * (1.0 + top_margin_factor)
     return brackets, required_ymax
+
+
+
+def draw_cross_graph_bracket(fig, ax1, ax2, x1, x2, y, text, line_h=0.02):
+    """Draw a significance bracket spanning two subplots."""
+    # Convert data coords to figure coords
+    p1 = ax1.transData.transform((x1, y))
+    p2 = ax2.transData.transform((x2, y))
+    inv = fig.transFigure.inverted()
+    fp1 = inv.transform(p1)
+    fp2 = inv.transform(p2)
+    # Draw bracket lines in figure coordinates
+    line = plt.Line2D([fp1[0], fp1[0], fp2[0], fp2[0]],
+                      [fp1[1], fp1[1]+line_h, fp2[1]+line_h, fp2[1]],
+                      transform=fig.transFigure, color='black', lw=1.2, zorder=10)
+    fig.add_artist(line)
+    # Add text label
+    fig.text((fp1[0]+fp2[0])/2, fp1[1]+line_h, text,
+             ha='center', va='bottom', fontsize=8, color='black')
 
 def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_data: pd.DataFrame):
     categories = list(data_dict.keys())
@@ -1455,8 +1502,43 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
         return
 
     # --- Start plotting
+    
+    # NEW: If cfg.get('cross_graph_brackets') == 'True', create two subplots and draw brackets across them.
+    cross_graph = (cfg.get('cross_graph_brackets','False').lower() == 'true')
+    if cross_graph:
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(width_in*2, height_in))
+        # Example: draw a bracket between first bar of ax1 and first bar of ax2
+        draw_cross_graph_bracket(fig, ax1, ax2, 0, 0, y_max*0.9, 'p<0.05')
+        # NOTE: Replace with actual logic to compute positions from your data.
+
     plt.ion()
     fig, ax = plt.subplots(figsize=(width_in, height_in))
+
+    # Add scroll-wheel zoom for y-axis (except Pie chart)
+    def on_scroll(event):
+        if event.inaxes != ax:
+            return
+        if ptype == "Pie chart":
+            return  # Disable zoom for Pie chart
+        cur_ylim = ax.get_ylim()
+        y_min, y_max = cur_ylim
+        range_y = (y_max - y_min)
+        # Zoom factor
+        base_scale = 1.1
+        if event.button == 'up':
+            scale_factor = 1 / base_scale
+        elif event.button == 'down':
+            scale_factor = base_scale
+        else:
+            scale_factor = 1
+        new_range = range_y * scale_factor
+        center = event.ydata if event.ydata is not None else (y_min + y_max) / 2
+        new_ymin = center - new_range / 2
+        new_ymax = center + new_range / 2
+        ax.set_ylim(new_ymin, new_ymax)
+        ax.figure.canvas.draw_idle()
+
+    fig.canvas.mpl_connect('scroll_event', on_scroll)
 
     # Series factor & X column
     series_factor = cfg.get("series_factor","").strip()
@@ -1472,11 +1554,7 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
             series_colors = ensure_colors_for_keys(series_levels_list, {})
 
     # Dispatch
-    if ptype == "Box":
-        plot_box(ax, categories, data_dict, colors_cat)
-    elif ptype == "Violin":
-        plot_violin(ax, categories, data_dict, colors_cat)
-    elif ptype == "Strip":
+    if ptype == "Strip":
         plot_strip(ax, categories, data_dict, colors_cat)
     elif ptype == "Mean ± CI":
         n_vec = np.array([len(data_dict[c]) for c in categories], dtype=float)
@@ -1511,7 +1589,7 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
             ax.bar(x[i], means[i], width=bar_width, color=colors_cat.get(cat,"#999999"),
                    edgecolor="#444444", linewidth=1.4, alpha=0.80, zorder=1)
 
-        ax.errorbar(x, means, yerr=sems, fmt="none", ecolor="gray", elinewidth=1.5, capsize=6, capthick=1.5, zorder=2)
+        ax.errorbar(x, means, yerr=sems, fmt="None", ecolor="gray", elinewidth=1.5, capsize=6, capthick=1.5, zorder=2)
 
         rng = np.random.default_rng(42)
         for i, cat in enumerate(categories):
@@ -1535,25 +1613,42 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
     if not ptype.startswith("Regression") and ptype != "Pie chart":
         ax.set_ylim(y_min, y_max)
 
-    # Build ticks automatically or from y-range
-    if y_min_user is not None and y_max_user is not None:
-        ticks = np.linspace(y_min, y_max, 5, endpoint=True)
-    else:
-        ticks = np.array([0, 1*step, 2*step, 3*step, 4*step], dtype=float)
-    ax.set_yticks(ticks)
-    formatter = ScalarFormatter(useMathText=True); formatter.set_scientific(False); formatter.set_useOffset(False)
-    ax.yaxis.set_major_formatter(formatter)
+    # --- Rebuild Y ticks (supports explicit tick step)
+    tick_val = cfg.get("tick", "auto")
 
-    # Dynamic yticklabels formatting based on range
-    yticklabels = []
-    y_span = max(1e-12, (y_max - y_min))
-    if y_span <= 1.0:
-        yticklabels = [f"{val:.1f}" for val in ticks]
-    elif y_max > 10000:
-        yticklabels = [f"{val:.1e}" for val in ticks]
+    def _rebuild_y_ticks(y_min, y_max, tick_val, fallback_step):
+        import math
+        s = str(tick_val).strip().lower() if tick_val is not None else 'auto'
+        step = None
+        if s != 'auto':
+            try:
+                step = float(s)
+            except Exception:
+                step = None
+        if step is None or not np.isfinite(step) or step <= 0:
+            ticks = np.linspace(y_min, y_max, 5)
+            return np.asarray(ticks, dtype=float), None
+        # Align start to multiple of step below/at y_min
+        k = math.floor((y_min + 1e-12) / step)
+        start = k * step
+        n_max = int(math.ceil((y_max - start) / step)) + 1
+        ticks = start + step * np.arange(n_max)
+        eps = step * 1e-6
+        ticks = ticks[(ticks >= y_min - eps) & (ticks <= y_max + eps)]
+        ticks = np.round(ticks, 6)
+        decimals = 0 if abs(step - round(step)) < 1e-9 else 1
+        return ticks, decimals
+
+    ticks, decimals = _rebuild_y_ticks(y_min, y_max, tick_val, step)
+    ax.set_yticks(ticks)
+
+    if decimals is None:
+        formatter = ScalarFormatter(useMathText=True)
+        formatter.set_scientific(False)
+        formatter.set_useOffset(False)
+        ax.yaxis.set_major_formatter(formatter)
     else:
-        yticklabels = [f"{int(val)}" for val in ticks]
-    ax.set_yticklabels(yticklabels)
+        ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _ : f"{v:.{decimals}f}"))
 
     # Spine widths
     for spine in ["left", "bottom"]:
@@ -1568,7 +1663,7 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
             )
             ax.text(
                 (b["x1"] + b["x2"]) / 2, b["y"] + line_h, b["text"],
-                ha="center", va="bottom", fontsize=9, color="black", clip_on=False, zorder=4
+                ha="center", va="bottom", fontsize=6, color="black", clip_on=False, zorder=4
             )
 
     if not only_plot and cfg["analysis"] == "t_one_sample" and single_annos and ptype != "Pie chart":
@@ -1710,7 +1805,7 @@ def open_config_gui():
     csv_path = tk.StringVar(value="")
     analysis = tk.StringVar(value="ANOVA")
     posthoc = tk.StringVar(value="None")
-    correction= tk.StringVar(value="holm")
+    correction= tk.StringVar(value="None")
     scope = tk.StringVar(value="vs_ref")
     alpha = tk.StringVar(value="0.05")
     tick = tk.StringVar(value="auto")
@@ -1839,7 +1934,7 @@ def open_config_gui():
         main, textvariable=plot_type, width=24, state="readonly",
         values=[
             "None",
-            "Bar + scatter", "Box", "Violin", "Strip",
+            "Bar + scatter", "Strip",
             "Mean ± CI", "Line ± CI", "Line (means)",
             "Area (quartiles stacked)",
             "Lines (series)", "Areas (series)",
@@ -1861,7 +1956,7 @@ def open_config_gui():
     scope_cb = ttk.Combobox(main, textvariable=scope, values=["vs_ref","all_pairs"], width=18, state="readonly")
     scope_cb.grid(row=r, column=1, sticky="w", padx=(4,0))
     ttk.Label(main, text="Correction:").grid(row=r, column=2, sticky="w")
-    ttk.Combobox(main, textvariable=correction, values=["bonferroni","holm","bh"], width=24, state="readonly").grid(row=r, column=3, sticky="w", padx=(4,0))
+    ttk.Combobox(main, textvariable=correction, values=["None","bonferroni","holm","bh"], width=24, state="readonly").grid(row=r, column=3, sticky="w", padx=(4,0))
     r += 1
 
     ttk.Label(main, text="Significance marker:").grid(row=r, column=0, sticky="w")
@@ -1874,7 +1969,7 @@ def open_config_gui():
     ttk.Entry(main, textvariable=ci_level, width=10).grid(row=r, column=3, sticky="w", padx=(4,0))
     r += 1
 
-    ttk.Label(main, text="Y tick step (ignored):").grid(row=r, column=2, sticky="w")
+    ttk.Label(main, text="Y tick step:").grid(row=r, column=2, sticky="w")
     ttk.Entry(main, textvariable=tick, width=10).grid(row=r, column=3, sticky="w", padx=(4,0))
     r += 1
 
