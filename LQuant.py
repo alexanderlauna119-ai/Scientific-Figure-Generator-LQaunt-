@@ -9,6 +9,12 @@ import matplotlib.pyplot as plt
 from scipy import stats
 from matplotlib.ticker import ScalarFormatter, FuncFormatter
 from geometry_canvas import InteractivePlane
+from analysis_extensions import (
+    plot_kaplan_meier,
+    run_and_plot_exponential_regression_global,
+    run_and_plot_exponential_regressions_series
+)
+
 
 
 
@@ -1611,7 +1617,7 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
     series_colors = None
     x_vec = None
 
-    if ptype in {"Lines (series)","Areas (series)","Regression (series)","Regression (global)"}:
+    if ptype in {"Lines (series)","Areas (series)","Regression (series)","Exponential regression (series)","Regression (global)","Exponential regression (global)"}:
         x_vec = build_group_x(categories_plot, df_plot, x_col if x_col else None)
         if ptype in {"Lines (series)","Areas (series)","Regression (series)"}:
             series_means = build_series_means(categories_plot, df_plot, series_factor if series_factor else None)
@@ -1647,6 +1653,36 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
         run_and_plot_regression_global(ax, x_vec, categories_plot, y_means_global, color="#2F3B52")
     elif ptype == "Pie chart":
         plot_pie(ax, categories_plot, data_plot, colors_cat, value_mode="sum")
+
+    elif ptype == "Exponential regression (series)":
+        x_vec = build_group_x(categories_plot, df_plot, x_col if x_col else None)
+        series_means = build_series_means(
+            categories_plot,
+            df_plot,
+            series_factor if series_factor else None
+        )
+        series_levels_list = list(series_means.keys())
+        series_colors = ensure_colors_for_keys(series_levels_list, {})
+        run_and_plot_exponential_regressions_series(
+            ax,
+            x_vec,
+            categories_plot,
+            series_means,
+            series_colors
+        )
+
+    elif ptype == "Exponential regression (global)":
+        x_vec = build_group_x(categories_plot, df_plot, x_col if x_col else None)
+        y_means = np.array(
+            [df_plot[df_plot["group"] == g]["value"].mean() for g in categories_plot],
+            dtype=float
+        )
+        run_and_plot_exponential_regression_global(ax, x_vec, y_means)
+
+    elif ptype == "Kaplan–Meier survival":
+        # Requires df_plot to contain 'time' and 'event'
+        plot_kaplan_meier(ax, df_plot)
+
     else:
         bar_width = 0.70
         for i, cat in enumerate(categories_plot):
@@ -1992,7 +2028,11 @@ def open_config_gui():
             "Mean ± CI", "Line ± CI", "Line (means)",
             "Area (quartiles stacked)",
             "Lines (series)", "Areas (series)",
-            "Regression (series)", "Regression (global)",
+            "Regression (series)",
+            "Exponential regression (series)",
+            "Regression (global)",
+            "Exponential regression (global)",
+            
             "Pie chart"
         ]
     ).grid(row=r, column=1, sticky="w", padx=(4,0))
@@ -2380,7 +2420,7 @@ def open_config_gui():
             "analysis": analysis.get(),
             "posthoc": posthoc.get(),
             "correction": correction.get(),
-            "scope": scope.get(),
+            "scope": scope_val,
             "alpha": alpha.get().strip(),
             "tick": tick.get().strip(),
             "default_ref": default_ref_var.get(),
