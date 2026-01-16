@@ -16,9 +16,8 @@ LQ is a Python-based data analysis tool with a GUI for statistical tests and vis
 
 # Windows
 1. Install Python 3.10+.
-2. Install dependencies: pip install -r requirements.txt
--   Optional dependencies for certain analyses: pip install scikit-posthocs statsmodels openpyxl xlrd
 3. Run the program: python main.py
+-  download geometry_canvas.py for acces to the canvas function, and place it in the same folder ad LQuant.py
 
 
 ### macOS
