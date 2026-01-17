@@ -14,9 +14,7 @@ from analysis_extensions import (
     run_and_plot_exponential_regression_global,
     run_and_plot_exponential_regressions_series
 )
-
-
-
+from scientific_calculator import launch_calculator
 
 # deps
 try:
@@ -2464,6 +2462,11 @@ def open_config_gui():
     ttk.Button(btns, text="Run", command=on_run).grid(row=0, column=0, padx=6)
     
     ttk.Button(btns, text="Geometry Canvas", command=lambda: InteractivePlane(root)).grid(row=0, column=2, padx=6)
+
+    def open_calc():
+        launch_calculator(master=None)   # independent window
+
+    ttk.Button(main, text="Calculator", command=open_calc).grid(row=r, column=4)
 
     r += 1
     adv_toggle = ttk.Checkbutton(
