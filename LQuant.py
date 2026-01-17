@@ -472,7 +472,7 @@ def show_pairwise_long_table_figure(pairwise_results):
     df_long = build_pairwise_long_table(pairwise_results)
 
     # Thresholds for switching to the scrollable popup
-    ROW_THRESHOLD = 45
+    ROW_THRESHOLD = 2
     COL_THRESHOLD = 8
 
     if len(df_long) > ROW_THRESHOLD or df_long.shape[1] > COL_THRESHOLD:
@@ -490,8 +490,8 @@ def show_pairwise_long_table_figure(pairwise_results):
         for artist in a.get_children():
             if hasattr(artist, 'set_fontsize') and hasattr(artist, 'scale'):
                 try:
-                    artist.set_fontsize(12)   # larger text
-                    artist.scale(1.0, 1.20)   # taller rows
+                    artist.set_fontsize(10)   # larger text
+                    artist.scale(1.0, 1.50)   # taller rows
                 except Exception:
                     pass
     plt.tight_layout()
