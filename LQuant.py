@@ -2420,7 +2420,7 @@ def open_config_gui():
             "analysis": analysis.get(),
             "posthoc": posthoc.get(),
             "correction": correction.get(),
-            "scope": scope_val,
+            "scope": scope.get(),
             "alpha": alpha.get().strip(),
             "tick": tick.get().strip(),
             "default_ref": default_ref_var.get(),
