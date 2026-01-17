@@ -1,7 +1,7 @@
 
 # scientific_calculator.py
 # RStudio-like console layout for a scientific calculator (Tkinter + NumPy)
-# - Left: Console area split by a vertical PanedWindow (Transcript top, Input bottom; draggable sash)
+# - Left: Console area split by a vertical Panedwindow (Transcript top, Input bottom; draggable sash)
 # - Bottom (pane): Console input (multi-line; Enter/Ctrl+Enter = run, Shift+Enter = newline)
 # - Right: Tabs: History (expr + result), Environment (variables, ans), Formulas (named snippets)
 # - Safe evaluation in a restricted namespace (NumPy-based)
@@ -16,15 +16,17 @@ import json
 import os
 import re
 from datetime import datetime
+from typing import Optional
+
 import numpy as np
 
-HISTORY_FILE   = "calc_history.json"
-FORMULAS_FILE  = "calc_formulas.json"
-MAX_HISTORY    = 500  # ring-buffer cap
+HISTORY_FILE = "calc_history.json"
+FORMULAS_FILE = "calc_formulas.json"
+MAX_HISTORY = 500  # ring-buffer cap
 
 
 class ScientificCalculator(tk.Toplevel):
-    def __init__(self, master: tk.Misc | None = None, title: str = "Scientific Calculator"):
+    def __init__(self, master: Optional[tk.Misc] = None, title: str = "Scientific Calculator"):
         # Create as Toplevel if master is given, else as main Tk window with hidden root
         if master is None:
             self._is_root = True
@@ -37,17 +39,17 @@ class ScientificCalculator(tk.Toplevel):
 
         # guard against re-entrant close on Windows
         self._closing = False
-
         self.title(title)
         try:
             self.state("zoomed")
         except Exception:
             self.geometry("1100x800+60+40")  # Tall default window
 
-        # ------------- state -------------
+        # ---------- state ----------
         self.vars: dict[str, float | np.ndarray] = {}
         self.ans = 0.0
         self.use_degrees = tk.BooleanVar(value=False)
+
         self._history: list[dict] = self._load_history()
         self._cmd_history: list[str] = [h.get("expr", "") for h in self._history if h.get("expr")]
         self._hist_index: int = len(self._cmd_history)
@@ -55,34 +57,33 @@ class ScientificCalculator(tk.Toplevel):
         # Formulas store (list of {"name": str, "expr": str})
         self._formulas: list[dict] = self._load_formulas()
 
-        # ------------- styles -------------
+        # ---------- styles ----------
         self.style = ttk.Style(self)
         self.style.configure("Console.TFrame", background="#1E1E1E")
         self.style.configure("Console.TLabel", foreground="#D4D4D4", background="#1E1E1E")
         self.style.configure("Cmd.TText", font=("Consolas", 14))
         self.style.configure("Transcript.TText", font=("Consolas", 12))
 
-        # ------------- layout -------------
+        # ---------- layout ----------
         outer = ttk.Frame(self, padding=(8, 8))
         outer.pack(fill="both", expand=True)
         outer.rowconfigure(0, weight=1)
         outer.columnconfigure(0, weight=1)
         outer.columnconfigure(1, weight=0)
 
-        # LEFT: Console column with resizable transcript/input via PanedWindow
+        # LEFT: Console column with resizable transcript/input via Panedwindow
         console_frame = ttk.Frame(outer, style="Console.TFrame")
         console_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
         console_frame.columnconfigure(0, weight=1)
         console_frame.rowconfigure(0, weight=1)
 
-        # PanedWindow: vertical split (top transcript, bottom input container)
+        # Panedwindow: vertical split (top transcript, bottom input container)
         console_pane = ttk.Panedwindow(console_frame, orient="vertical")
         console_pane.grid(row=0, column=0, sticky="nsew")
 
-        # --- Top pane: Transcript ---
+        # --- Top pane: Transcript (RESULT) ---
         transcript_frame = ttk.Frame(console_pane, style="Console.TFrame")
-        console_pane.add(transcript_frame, weight=2)  # relative weight; top
-
+        console_pane.add(transcript_frame, weight=3)  # top result area gets higher weight
         self.transcript = tk.Text(
             transcript_frame,
             wrap="word",
@@ -103,8 +104,7 @@ class ScientificCalculator(tk.Toplevel):
 
         # --- Bottom pane: Input area (toolbar + label + input box) ---
         input_area = ttk.Frame(console_pane)
-        console_pane.add(input_area, weight=3)  # bottom pane gets more weight -> taller input container
-
+        console_pane.add(input_area, weight=2)  # bottom input area (~40%)
         # Top row: small toolbar
         toolbar = ttk.Frame(input_area)
         toolbar.pack(fill="x", pady=(0, 4))
@@ -123,7 +123,7 @@ class ScientificCalculator(tk.Toplevel):
         input_frame.pack(fill="both", expand=True)
         self.input = tk.Text(
             input_frame,
-            height=10,  # taller starting height; pane allows resizing
+            height=10,  # initial height; pane allows resizing
             wrap="word",
             font=("Consolas", 14),
             undo=True,
@@ -138,15 +138,29 @@ class ScientificCalculator(tk.Toplevel):
         self.input.pack(side="left", fill="both", expand=True)
         i_y.pack(side="right", fill="y")
 
-        # On first layout, bias sash so input ≈ 60% (≈50% taller than transcript)
-        def _set_sash_initial():
+        # Configure min sizes so panes can’t fully collapse
+        try:
+            console_pane.paneconfigure(transcript_frame, minsize=80)
+            console_pane.paneconfigure(input_area, minsize=80)
+        except Exception:
+            pass
+
+        # --- NEW: Robust initial sash placement using the PANEDWINDOW height + bounded retries ---
+        def _set_sash_initial_retry(tries_left=10):
             try:
-                h = console_frame.winfo_height()
-                if h > 0:
-                    console_pane.sashpos(0, int(h * 0.40))  # top ~40%, bottom ~60%
+                self.update_idletasks()
+                h = console_pane.winfo_height()  # measure the panedwindow itself
+                if h and h > 40:
+                    # Top (transcript/result) ~ 60%, Bottom (input) ~ 40%
+                    console_pane.sashpos(0, int(h * 0.60))
+                    return  # success; stop retrying
             except Exception:
                 pass
-        self.after(50, _set_sash_initial)
+            if tries_left > 0:
+                self.after(60, lambda: _set_sash_initial_retry(tries_left - 1))
+
+        # Schedule the first attempt once the window is idle
+        self.after_idle(_set_sash_initial_retry)
 
         # RIGHT: tabs (History, Environment, Formulas)
         right = ttk.Notebook(outer)
@@ -166,6 +180,7 @@ class ScientificCalculator(tk.Toplevel):
         hist_v.grid(row=0, column=1, sticky="ns")
         hist_tab.rowconfigure(0, weight=1)
         hist_tab.columnconfigure(0, weight=1)
+
         # History actions
         btns_hist = ttk.Frame(hist_tab)
         btns_hist.grid(row=1, column=0, sticky="ew", pady=(6, 0))
@@ -206,6 +221,7 @@ class ScientificCalculator(tk.Toplevel):
         form_v.grid(row=0, column=1, sticky="ns")
         form_tab.rowconfigure(0, weight=1)
         form_tab.columnconfigure(0, weight=1)
+
         # Formulas actions
         btns_form = ttk.Frame(form_tab)
         btns_form.grid(row=1, column=0, sticky="ew", pady=(6, 0))
@@ -214,9 +230,8 @@ class ScientificCalculator(tk.Toplevel):
         ttk.Button(btns_form, text="Run", command=self._run_selected_formula).pack(side="left", padx=(12, 0))
         ttk.Button(btns_form, text="→ Input", command=self._send_selected_formula_to_input).pack(side="left", padx=(6, 0))
         ttk.Button(btns_form, text="Delete", command=self._delete_selected_formula).pack(side="left", padx=(6, 0))
-
         self.formulas_tv.bind("<Double-1>", lambda e: self._send_selected_formula_to_input())
-        self.formulas_tv.bind("<Return>",  lambda e: (self._run_selected_formula(), "break"))
+        self.formulas_tv.bind("<Return>", lambda e: (self._run_selected_formula(), "break"))
         self._reload_formulas_tv()
 
         # History context menu
@@ -237,6 +252,10 @@ class ScientificCalculator(tk.Toplevel):
         # Bindings: Console behavior
         self._bind_console_keys()
 
+        # Mouse wheel scrolling on hover (works without focusing the widget)
+        self._enable_hover_scroll(self.transcript)
+        self._enable_hover_scroll(self.input)
+
         # Close handling
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
@@ -253,25 +272,30 @@ class ScientificCalculator(tk.Toplevel):
     # ---------- UI construction helpers ----------
     def _build_menubar(self):
         menubar = tk.Menu(self)
+
         # File
         m_file = tk.Menu(menubar, tearoff=0)
         m_file.add_command(label="Save Transcript…", command=self._save_transcript)
         m_file.add_separator()
         m_file.add_command(label="Exit", command=self._on_close)
         menubar.add_cascade(label="File", menu=m_file)
+
         # Edit
         m_edit = tk.Menu(menubar, tearoff=0)
         m_edit.add_command(label="Clear Input", command=lambda: self._set_input_text(""))
         m_edit.add_command(label="Clear Console", command=self._clear_transcript)
         menubar.add_cascade(label="Edit", menu=m_edit)
+
         # Options
         m_opt = tk.Menu(menubar, tearoff=0)
         m_opt.add_checkbutton(label="Trig in Degrees", onvalue=True, offvalue=False, variable=self.use_degrees)
         menubar.add_cascade(label="Options", menu=m_opt)
+
         # Help
         m_help = tk.Menu(menubar, tearoff=0)
         m_help.add_command(label="Calculations reference", command=self._show_calculations_help)
         menubar.add_cascade(label="Help", menu=m_help)
+
         self.config(menu=menubar)
 
     def _init_transcript_tags(self):
@@ -360,13 +384,13 @@ class ScientificCalculator(tk.Toplevel):
         cheat = (
             "CALCULATIONS YOU CAN USE\n"
             "=========================\n\n"
-            "• Basic arithmetic: +  -  *  /  //  %  ^  (use ^ or ** for power)\n"
+            "• Basic arithmetic: + - * / // % ^ (use ^ or ** for power)\n"
             "  Examples: 2+3*4, (2+3)^2, 7//3, 7%3, 2**10\n\n"
             "• Parentheses & chaining with ';'\n"
             "  Example: a=5; b=3; a^2 + b^2\n\n"
             "• Implicit multiplication (auto-inserts '*'):\n"
-            "  2x → 2*x   |   2(x+1) → 2*(x+1)   |   (x+1)(x-1) → (x+1)*(x-1)\n"
-            "  5sin(x) → 5*sin(x)   |   x2 → x*2   |   )2 → )*2\n\n"
+            "  2x → 2*x | 2(x+1) → 2*(x+1) | (x+1)(x-1) → (x+1)*(x-1)\n"
+            "  5sin(x) → 5*sin(x) | x2 → x*2 | )2 → )*2\n\n"
             "• Constants: pi, e, tau\n"
             "• Last result: ans (updated after every evaluation)\n\n"
             "• Functions (radians by default; toggle 'Degrees'):\n"
@@ -374,7 +398,7 @@ class ScientificCalculator(tk.Toplevel):
             "  exp, log (natural log), log10\n"
             "  sqrt, abs, round, floor, ceil, min, max, pow\n\n"
             "  Examples:\n"
-            "  sin(pi/6), cos(0.5), tan(30)   # if Degrees checked, 30 is degrees\n"
+            "  sin(pi/6), cos(0.5), tan(30)  # if Degrees checked, 30 is degrees\n"
             "  ln(10) or log(10), log10(1000), sqrt(2)\n"
             "  a=5; b=sin(pi/6); a+b\n"
             "  2x + 3, 2(x+1), (x+1)(x-1), 5sin(x)\n\n"
@@ -402,7 +426,6 @@ class ScientificCalculator(tk.Toplevel):
         # History navigation
         self.input.bind("<Up>", self._on_up_history)
         self.input.bind("<Down>", self._on_down_history)
-
         # Right panel: allow Enter to run from the history tree as well
         self.tree.bind("<Return>", lambda e: (self.evaluate(), "break"))
         self.tree.bind("<KP_Enter>", lambda e: (self.evaluate(), "break"))
@@ -422,7 +445,7 @@ class ScientificCalculator(tk.Toplevel):
         if self._hist_index > 0:
             self._hist_index -= 1
             self._set_input_text(self._cmd_history[self._hist_index])
-        return "break"
+            return "break"
 
     def _on_down_history(self, event=None):
         # Only intercept when caret is at very end
@@ -442,6 +465,68 @@ class ScientificCalculator(tk.Toplevel):
         self.input.insert("1.0", text)
         self.input.see("end")
         self.input.focus_set()
+
+    # ---------- Hover mouse-wheel scrolling ----------
+    def _enable_hover_scroll(self, widget: tk.Widget):
+        """
+        Let the mouse wheel scroll a widget while hovering, without requiring focus.
+        Works across Windows, macOS, and Linux (X11).
+        """
+        def _on_enter(_):
+            # Windows / X11
+            widget.bind_all("<MouseWheel>", _on_wheel, add="+")
+            widget.bind_all("<Shift-MouseWheel>", _on_wheel, add="+")
+            # Linux (Button-4/5)
+            widget.bind_all("<Button-4>", _on_wheel_btn, add="+")
+            widget.bind_all("<Button-5>", _on_wheel_btn, add="+")
+            # macOS (delta is different but <MouseWheel> still fires)
+            widget.bind_all("<Shift-Button-4>", _on_wheel_btn, add="+")
+            widget.bind_all("<Shift-Button-5>", _on_wheel_btn, add="+")
+
+        def _on_leave(_):
+            # Remove only our handlers
+            try:
+                widget.unbind_all("<MouseWheel>")
+                widget.unbind_all("<Shift-MouseWheel>")
+                widget.unbind_all("<Button-4>")
+                widget.unbind_all("<Button-5>")
+                widget.unbind_all("<Shift-Button-4>")
+                widget.unbind_all("<Shift-Button-5>")
+            except Exception:
+                pass
+
+        def _on_wheel(event):
+            # event.delta: Windows multiples of 120; macOS small deltas; X11 often 0
+            delta = event.delta
+            lines = 0
+            if delta > 0:
+                lines = -1  # scroll up
+            elif delta < 0:
+                lines = 1   # scroll down
+            if lines:
+                try:
+                    widget.yview_scroll(lines, "units")
+                except Exception:
+                    pass
+            return "break"
+
+        def _on_wheel_btn(event):
+            # X11 button events: 4 = up, 5 = down
+            if event.num == 4:
+                step = -1
+            elif event.num == 5:
+                step = 1
+            else:
+                step = 0
+            if step:
+                try:
+                    widget.yview_scroll(step, "units")
+                except Exception:
+                    pass
+            return "break"
+
+        widget.bind("<Enter>", _on_enter, add="+")
+        widget.bind("<Leave>", _on_leave, add="+")
 
     # ---------- History + Environment panels ----------
     def _show_context_menu(self, event):
@@ -497,8 +582,7 @@ class ScientificCalculator(tk.Toplevel):
         for row in self.tree.get_children():
             self.tree.delete(row)
         for i, item in enumerate(self._history[-MAX_HISTORY:]):
-            self.tree.insert("", "end", iid=str(i),
-                             values=(item.get("expr", ""), item.get("result", "")))
+            self.tree.insert("", "end", iid=str(i), values=(item.get("expr", ""), item.get("result", "")))
 
     def _refresh_environment_view(self):
         for row in self.env.get_children():
@@ -522,8 +606,7 @@ class ScientificCalculator(tk.Toplevel):
         for row in self.formulas_tv.get_children():
             self.formulas_tv.delete(row)
         for idx, item in enumerate(self._formulas):
-            self.formulas_tv.insert("", "end", iid=str(idx),
-                                    values=(item.get("name", ""), item.get("expr", "")))
+            self.formulas_tv.insert("", "end", iid=str(idx), values=(item.get("name", ""), item.get("expr", "")))
 
     def _selected_formula_index(self) -> int | None:
         sel = self.formulas_tv.selection()
@@ -553,6 +636,7 @@ class ScientificCalculator(tk.Toplevel):
         win.resizable(True, True)
 
         name_var = tk.StringVar(value=(self._formulas[index]["name"] if index is not None else ""))
+
         ttk.Label(win, text="Name:").pack(anchor="w", padx=10, pady=(10, 2))
         name_entry = ttk.Entry(win, textvariable=name_var)
         name_entry.pack(fill="x", padx=10)
@@ -633,17 +717,17 @@ class ScientificCalculator(tk.Toplevel):
             t = tok
             # 1) 2x -> 2*x
             t = re.sub(r"(\d)\s*([A-Za-z])", r"\1*\2", t)
-            # 2) x2 -> x*2
+            # 2) x2 -> x*2  (single-letter variable followed by number)
             t = re.sub(r"([A-Za-z])\s*(\d)", r"\1*\2", t)
             # 3) 2(x+1) -> 2*(x+1)
             t = re.sub(r"(\d)\s*(\()", r"\1*\2", t)
-            # 4) x(y) -> x*(y)
-            t = re.sub(r"\b([a-zA-Z])\s*(\()", r"\1*\2", t)
+            # 4) x(y) -> x*(y)   (single-letter var to avoid sin(x) -> sin*(x))
+            t = re.sub(r"\b([A-Za-z])\s*(\()", r"\1*\2", t)
             # 5) )2 -> )*2
             t = re.sub(r"(\))\s*(\d)", r"\1*\2", t)
             # 6) )x -> )*x
             t = re.sub(r"(\))\s*([A-Za-z])", r"\1*\2", t)
-            # 7) ')\(' -> ')*('
+            # 7) ')(' -> ')*('
             t = re.sub(r"(\))\s*(\()", r"\1*\2", t)
             # 8) 5sin(x) -> 5*sin(x)
             t = re.sub(
@@ -751,6 +835,7 @@ class ScientificCalculator(tk.Toplevel):
                 s = f"{v:.12g}"
             except Exception:
                 s = str(value)
+
         self._append_transcript(s + "\n", tag="result")
 
         # Update history + environment
@@ -776,8 +861,8 @@ class ScientificCalculator(tk.Toplevel):
             if os.path.exists(HISTORY_FILE):
                 with open(HISTORY_FILE, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    if isinstance(data, list):
-                        return data[-MAX_HISTORY:]
+                if isinstance(data, list):
+                    return data[-MAX_HISTORY:]
         except Exception:
             pass
         return []
@@ -794,14 +879,14 @@ class ScientificCalculator(tk.Toplevel):
             if os.path.exists(FORMULAS_FILE):
                 with open(FORMULAS_FILE, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    if isinstance(data, list):
-                        out = []
-                        for it in data:
-                            name = str(it.get("name", "")).strip()
-                            expr = str(it.get("expr", "")).strip()
-                            if name and expr:
-                                out.append({"name": name, "expr": expr})
-                        return out
+                if isinstance(data, list):
+                    out = []
+                    for it in data:
+                        name = str(it.get("name", "")).strip()
+                        expr = str(it.get("expr", "")).strip()
+                        if name and expr:
+                            out.append({"name": name, "expr": expr})
+                    return out
         except Exception:
             pass
         return []
@@ -819,18 +904,15 @@ class ScientificCalculator(tk.Toplevel):
         if self._closing:
             return
         self._closing = True
-
         try:
             self._persist_history()
             self._persist_formulas()
         except Exception:
             pass
-
         try:
             self.protocol("WM_DELETE_WINDOW", None)  # prevent re-entry
         except Exception:
             pass
-
         self.after_idle(self._really_close)
 
     def _really_close(self):
@@ -862,13 +944,13 @@ class ScientificCalculator(tk.Toplevel):
 
 
 # ---- Convenience launcher ----
-def launch_calculator(master: tk.Misc | None = None, title: str = "Scientific Calculator"):
+def launch_calculator(master: Optional[tk.Misc] = None, title: str = "Scientific Calculator"):
     """
     Launch the calculator as a Toplevel if master is provided, otherwise standalone window.
     Returns the created ScientificCalculator instance.
     """
     win = ScientificCalculator(master=master, title=title)
-    win.focus_set()
+    win.focus_set
     return win
 
 
