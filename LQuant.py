@@ -1,5 +1,4 @@
 
-
 from __future__ import annotations
 import os, json, shutil, tempfile, traceback
 from typing import Dict, List, Tuple, Optional
@@ -15,7 +14,14 @@ from analysis_extensions import (
     run_and_plot_exponential_regressions_series
 )
 from scientific_calculator import launch_calculator
+from multiple_regression import MultipleRegressionWindow
 
+# --- Local tool windows (same folder as 1.txt) ---
+import os, sys
+_THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+if _THIS_DIR not in sys.path:
+    sys.path.insert(0, _THIS_DIR)
+from power_analysis import PowerAnalysisWindow  # NEW
 # deps
 try:
     from statsmodels.stats.multicomp import pairwise_tukeyhsd
@@ -41,7 +47,7 @@ except Exception:
 # Tkinter GUI
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, colorchooser
-# ------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # I/O helpers
 def _read_any_table(path: str, sheet: Optional[str] = None) -> pd.DataFrame:
     if not isinstance(path, str) or not path.strip():
@@ -108,11 +114,10 @@ def _pick_excel_sheet_dialog(path: str) -> Optional[str]:
     btns = ttk.Frame(dlg); btns.pack(padx=12, pady=(0, 10))
     ttk.Button(btns, text="OK", command=_ok).grid(row=0, column=0, padx=6)
     ttk.Button(btns, text="Cancel", command=_cancel).grid(row=0, column=1, padx=6)
-   
     dlg.grab_set()
     dlg.wait_window()
     return chosen["name"]
-# ------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Wide-form Excel loader
 def is_wide_excel(path: str, sheet: Optional[str] = None) -> bool:
     try:
@@ -144,7 +149,7 @@ def load_excel_wide(path: str, sheet: Optional[str] = None) -> Tuple[Dict[str, L
     if not data_dict:
         raise ValueError("No numeric values found when interpreting columns as groups.")
     return data_dict, df_long
-# ------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # loader
 def load_data(file_path: Optional[str], sheet: Optional[str] = None) -> Tuple[Dict[str, List[float]], pd.DataFrame]:
     if not file_path:
@@ -171,7 +176,7 @@ def load_data(file_path: Optional[str], sheet: Optional[str] = None) -> Tuple[Di
     if len(data_dict) < 1:
         raise ValueError("No valid groups with data found in the table.")
     return data_dict, df
-# ------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Color helpers
 def tuple_to_hex(rgb) -> str:
     r, g, b = [int(255*x) for x in rgb[:3]]
@@ -188,7 +193,7 @@ def ensure_colors_for_keys(keys: List[str], colors: Dict[str, str]) -> Dict[str,
         for c in needed:
             out[c] = auto.get(c, "#777777")
     return out
-# ------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Stats, formatting, tables, plots
 def adjust_pvals(pvals: List[float], method: str = "holm") -> np.ndarray:
     pvals = np.asarray(pvals, dtype=float)
@@ -389,8 +394,7 @@ def _make_table_figure(df, title: str, max_height_in=16.0):
     table.scale(1.0, 1.1)
     plt.tight_layout()
     return fig
-
-# -----------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # NEW: builder for the "long table" (export + viewer reuse)
 def build_pairwise_long_table(pairwise_results) -> pd.DataFrame:
     """
@@ -399,15 +403,12 @@ def build_pairwise_long_table(pairwise_results) -> pd.DataFrame:
     """
     if not pairwise_results:
         return pd.DataFrame(columns=["ref", "group", "name", "stat", "p_raw", "p_adj"])
-
     df = pd.DataFrame(pairwise_results).copy()
     for c in ["ref", "group", "name", "stat", "p_raw", "p_adj"]:
         if c not in df.columns:
             df[c] = np.nan
-
     def _fmt_stat(x):
         return "" if pd.isna(x) else f"{x:.3f}"
-
     def _fmt_p(x):
         if pd.isna(x):
             return ""
@@ -420,15 +421,13 @@ def build_pairwise_long_table(pairwise_results) -> pd.DataFrame:
         else:
             s = f"{x:.3e}"
         return s
-
     df_long = df[["ref", "group", "name", "stat", "p_raw", "p_adj"]].copy()
     df_long["stat"] = df_long["stat"].map(_fmt_stat)
     df_long["p_raw"] = df_long["p_raw"].map(_fmt_p)
     df_long["p_adj"] = df_long["p_adj"].map(_fmt_p)
     df_long = df_long.sort_values(["ref", "group", "name"], kind="stable")
     return df_long
-
-# -----------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # NEW: scrollable popup for the significance (pairwise) long table
 def show_pairwise_long_table_popup(df_long: pd.DataFrame, title: str = "Pairwise comparisons — p-values (long table)"):
     win = tk.Toplevel()
@@ -436,7 +435,6 @@ def show_pairwise_long_table_popup(df_long: pd.DataFrame, title: str = "Pairwise
     win.geometry("1100x600")  # tweak as needed
     frame = ttk.Frame(win, padding=(8, 8))
     frame.pack(fill="both", expand=True)
-
     columns = list(df_long.columns)
     tree = ttk.Treeview(frame, columns=columns, show="headings", height=16)
     for col in columns:
@@ -445,40 +443,32 @@ def show_pairwise_long_table_popup(df_long: pd.DataFrame, title: str = "Pairwise
         if col in {"ref", "group", "name"}:
             width = 180
         tree.column(col, width=width, anchor="center")
-
     vsb = ttk.Scrollbar(frame, orient="vertical", command=tree.yview)
     hsb = ttk.Scrollbar(frame, orient="horizontal", command=tree.xview)
     tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
-
     tree.grid(row=0, column=0, sticky="nsew")
     vsb.grid(row=0, column=1, sticky="ns")
     hsb.grid(row=1, column=0, sticky="ew")
     frame.grid_rowconfigure(0, weight=1)
     frame.grid_columnconfigure(0, weight=1)
-
     for _, row in df_long.iterrows():
         tree.insert("", "end", values=[row[c] for c in columns])
-
     toolbar = ttk.Frame(frame)
     toolbar.grid(row=2, column=0, sticky="e", pady=(8, 0))
     ttk.Button(toolbar, text="Close", command=win.destroy).pack(side="right", padx=(6,0))
-
-# -----------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # UPDATED: smart viewer for the significance table (figure for small; popup for long)
 def show_pairwise_long_table_figure(pairwise_results):
     if not pairwise_results:
         print("\n(No pairwise comparisons to display)")
         return
     df_long = build_pairwise_long_table(pairwise_results)
-
     # Thresholds for switching to the scrollable popup
     ROW_THRESHOLD = 2
     COL_THRESHOLD = 8
-
     if len(df_long) > ROW_THRESHOLD or df_long.shape[1] > COL_THRESHOLD:
         show_pairwise_long_table_popup(df_long, title="Pairwise comparisons — p-values (long table)")
         return
-
     # For smaller tables, keep the figure but improve readability
     fig = _make_table_figure(
         df_long,
@@ -490,16 +480,15 @@ def show_pairwise_long_table_figure(pairwise_results):
         for artist in a.get_children():
             if hasattr(artist, 'set_fontsize') and hasattr(artist, 'scale'):
                 try:
-                    artist.set_fontsize(10)   # larger text
-                    artist.scale(1.0, 1.50)   # taller rows
+                    artist.set_fontsize(10)  # larger text
+                    artist.scale(1.0, 1.50)  # taller rows
                 except Exception:
                     pass
     plt.tight_layout()
-
 def show_normality_table(rows: List[Dict[str, str]], title: str = "Normality tests"):
     win = tk.Toplevel()
     win.title(title)
-    win.geometry("1100x600") # enlarged popup
+    win.geometry("1100x600")  # enlarged popup
     frame = ttk.Frame(win, padding=(8,8))
     frame.pack(fill="both", expand=True)
     columns = ["Group", "Test", "Stat", "p-value", "Decision", "Note"]
@@ -524,7 +513,7 @@ def show_normality_table(rows: List[Dict[str, str]], title: str = "Normality tes
 def show_descriptives_table(df: pd.DataFrame, title: str = "Descriptives"):
     win = tk.Toplevel()
     win.title(title)
-    win.geometry("1100x600") # enlarged popup
+    win.geometry("1100x600")  # enlarged popup
     frame = ttk.Frame(win, padding=(8,8))
     frame.pack(fill="both", expand=True)
     columns = list(df.columns)
@@ -545,7 +534,7 @@ def show_descriptives_table(df: pd.DataFrame, title: str = "Descriptives"):
     for _, row in df.iterrows():
         tree.insert("", "end", values=[row[c] for c in columns])
     ttk.Button(frame, text="Close", command=win.destroy).grid(row=2, column=0, sticky="e", pady=(8,0))
-# ------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Normality runners, posthocs, two-way ANOVA, etc. (logic mostly unchanged)
 def run_normality_all(data: Dict[str, List[float]], alpha: float) -> Dict[str, Dict[str, dict]]:
     results: Dict[str, Dict[str, dict]] = {}
@@ -783,7 +772,7 @@ def run_friedman(df: pd.DataFrame):
     stat, p = stats.friedmanchisquare(*arrays)
     print(f"\nFriedman test: χ²_F={float(stat):.3f}, p={float(p):.3e} (subjects n={wide.shape[0]}; groups={list(wide.columns)})")
     return stat, p, list(wide.columns)
-# ------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Histogram panel
 def parse_bins_spec(spec: str) -> object:
     s = (spec or "").strip().lower()
@@ -827,7 +816,7 @@ def plot_histograms_panel(
         axes[r][c].set_visible(False)
     fig.suptitle(title, fontsize=10)
     fig.tight_layout(rect=[0, 0, 1, 0.96])
-# ------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Series helpers & plotting
 def series_levels(df: pd.DataFrame, series_factor: Optional[str]) -> List[str]:
     if not series_factor or series_factor not in df.columns:
@@ -861,28 +850,81 @@ def build_group_x(categories: List[str], df: pd.DataFrame, x_col: Optional[str])
     if np.isnan(xs).sum() > max(0, len(xs)//3):
         return np.arange(len(categories), dtype=float)
     return xs
+
+
 def plot_box(ax, categories, data, colors):
+    """
+    Boxplot aligned to 0..N-1 with fixed xlim to match bracket x-positions.
+    """
+    import numpy as np
     vals = [np.asarray(data[c], dtype=float) for c in categories]
-    bp = ax.boxplot(vals, patch_artist=True, labels=categories)
+    pos = np.arange(len(categories), dtype=float)  # 0-based alignment
+
+    bp = ax.boxplot(
+        vals,
+        positions=pos,
+        patch_artist=True,
+        labels=None
+    )
+
     for patch, cat in zip(bp['boxes'], categories):
         patch.set_facecolor(colors.get(cat, "#999999"))
         patch.set_alpha(0.75)
         patch.set_edgecolor("#444444")
-    for whisker in bp['whiskers'] + bp['caps'] + bp['medians']:
-        whisker.set_color("#444444")
-    return ax
-def plot_violin(ax, categories, data, colors):
-    vals = [np.asarray(data[c], dtype=float) for c in categories]
-    v = ax.violinplot(vals, showmeans=False, showmedians=True, showextrema=True)
-    for i, b in enumerate(v['bodies']):
-        b.set_facecolor(colors.get(categories[i], "#999999"))
-        b.set_alpha(0.75)
-        b.set_edgecolor("#444444")
-    for k in ("cmins","cmaxes","cbars","cmedians"):
-        if k in v: v[k].set_color("#444444")
-    ax.set_xticks(np.arange(1, len(categories)+1))
+
+    for artist in bp.get('whiskers', []) + bp.get('caps', []) + bp.get('medians', []):
+        artist.set_color("#444444")
+
+    # Pin the x-axis exactly over our integer grid (no padding)
+    ax.set_xlim(-0.5, len(categories) - 0.5)
+    ax.margins(x=0)  # no extra horizontal padding
+
+    ax.set_xticks(pos)
     ax.set_xticklabels(categories, rotation=45, ha="right", fontsize=8)
+
+    # Important: don't let later artists change autoscale unexpectedly
+    ax.autoscale(enable=False, axis="x")
+
     return ax
+
+
+def plot_violin(ax, categories, data, colors):
+    """
+    Violin plot aligned to 0..N-1 with fixed xlim to match bracket x-positions.
+    """
+    import numpy as np
+    vals = [np.asarray(data[c], dtype=float) for c in categories]
+    pos = np.arange(len(categories), dtype=float)
+
+    v = ax.violinplot(
+        vals,
+        positions=pos,
+        showmeans=False,
+        showmedians=True,
+        showextrema=True
+    )
+
+    for i, body in enumerate(v['bodies']):
+        body.set_facecolor(colors.get(categories[i], "#999999"))
+        body.set_alpha(0.75)
+        body.set_edgecolor("#444444")
+
+    for k in ("cmins", "cmaxes", "cbars", "cmedians"):
+        if k in v:
+            v[k].set_color("#444444")
+
+    # Pin the x-axis over our integer grid (no padding)
+    ax.set_xlim(-0.5, len(categories) - 0.5)
+    ax.margins(x=0)
+
+    ax.set_xticks(pos)
+    ax.set_xticklabels(categories, rotation=45, ha="right", fontsize=8)
+
+    # Important: don't let later artists change autoscale unexpectedly
+    ax.autoscale(enable=False, axis="x")
+
+    return ax
+
 def plot_strip(ax, categories, data, colors, jitter=0.08):
     rng = np.random.default_rng(42)
     x = np.arange(len(categories))
@@ -1048,7 +1090,7 @@ def run_and_plot_regression_global(ax, x_vec: np.ndarray, categories: List[str],
     ax.set_xticks(x_vec if np.all(np.isfinite(x_vec)) else np.arange(len(categories)))
     ax.set_xticklabels(categories, rotation=45, ha="right", fontsize=8)
     return ax
-# ------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Execute analysis
 def compute_brackets_default_only(
     categories,
@@ -1182,31 +1224,26 @@ def draw_cross_graph_bracket(fig, ax1, ax2, x1, x2, y, text, line_h=0.02):
     fig.add_artist(line)
     fig.text((fp1[0]+fp2[0])/2, fp1[1]+line_h, text,
              ha='center', va='bottom', fontsize=8, color='black')
-
-
 def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_data: pd.DataFrame, result_hook=None):
     """
     UPDATED:
     - Analysis uses full data (categories_all, data_dict, df_data).
     - Plotting uses filtered selection (categories_plot, data_plot, df_plot) based on:
-        cfg["selected_groups"] and cfg["hide_deselected_plot"].
+      cfg["selected_groups"] and cfg["hide_deselected_plot"].
     - Calls result_hook({"pairwise_results": ..., "alpha": ...}) when done.
     """
-    # -------- selection for plotting vs analysis universe --------
+    # ---- selection for plotting vs analysis universe ----
     categories_all = list(data_dict.keys())
     default_ref = cfg["default_ref"] if cfg["default_ref"] else ("-dox" if "-dox" in categories_all else (categories_all[0] if categories_all else ""))
     ref = cfg["ref"] if cfg["ref"] else default_ref
     exclude_vs = cfg["exclude"] if cfg["exclude"] else None
-
     def _get_float(val: str, default: float) -> float:
         try: return float(val)
         except: return default
-
     try: alpha = float(cfg["alpha"])
     except Exception: alpha = 0.05
     try: mu_val = float(cfg["mu"])
     except Exception: mu_val = 0.0
-
     y_min_str = (cfg.get("y_min") or "").strip()
     y_max_str = (cfg.get("y_max") or "").strip()
     y_min_user = None
@@ -1220,7 +1257,6 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
     if y_min_user is not None and y_max_user is not None and y_max_user <= y_min_user:
         print("[Y-axis] Provided y_max <= y_min; ignoring custom limits.")
         y_min_user = None; y_max_user = None
-
     y_axis_label = cfg.get("y_label", "Value") or "Value"
     sig_marker_mode = (cfg.get("sig_marker_mode") or "p-value").strip()
     base_gap_factor = _get_float(cfg["base_gap_factor"], 0.08)
@@ -1228,14 +1264,12 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
     line_height_factor= _get_float(cfg["line_height_factor"],0.025)
     collision_k = _get_float(cfg["collision_k"], 0.75)
     top_margin_factor = _get_float(cfg["top_margin_factor"], 0.12)
-
     try:
         colors_cat = json.loads(cfg.get("colors_json","{}"))
         if not isinstance(colors_cat, dict): colors_cat = {}
     except Exception:
         colors_cat = {}
     colors_cat = ensure_colors_for_keys(categories_all, colors_cat)
-
     xlsx_path = (cfg.get("export_xlsx") or "").strip()
     excel_writer = None
     _excel_sheets_written = 0
@@ -1255,7 +1289,6 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
             _excel_sheets_written += 1
         except Exception as e:
             print(f"\n[Excel] Failed to write sheet '{sheet}': {e}")
-
     # ---- selection flags from cfg for plotting ----
     selected_csv = (cfg.get("selected_groups") or "").strip()
     hide_deselected_flag = (cfg.get("hide_deselected_plot", "False").lower() == "true")
@@ -1263,7 +1296,6 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
     categories_plot = [g for g in categories_all if (not hide_deselected_flag) or (g in selected_set)]
     data_plot = {g: data_dict[g] for g in categories_plot}
     df_plot = df_data[df_data["group"].isin(categories_plot)].copy()
-
     # ---- Helper to deliver hook safely ----
     def _deliver_hook(pairwise_results_list):
         if result_hook is not None:
@@ -1271,18 +1303,13 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
                 result_hook({"pairwise_results": pairwise_results_list or [], "alpha": alpha})
             except Exception:
                 pass
-
     # ========== ANALYSIS (uses full data — categories_all, data_dict, df_data) ==========
     only_plot = (cfg["analysis"] == "None")
-
     if not only_plot:
         diagnostics(data_dict)
-
     pairwise_results: List[Dict[str, float]] = []
     single_annos: List[Dict[str, float]] = []
-
     ph = cfg["posthoc"]; scope = cfg["scope"]; correction = cfg["correction"]
-
     if not only_plot:
         if cfg["analysis"] == "Normality (all)":
             normality_results = run_normality_all(data_dict, alpha=alpha)
@@ -1296,7 +1323,6 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
             root_tmp.mainloop()
             qq_plot_groups(data_dict, title="Q–Q plots (Normality check)")
             plt.ion(); plt.show(block=True)
-
             if excel_writer is not None:
                 try:
                     cfg_df = pd.DataFrame(sorted(cfg.items()), columns=["key","value"])
@@ -1308,7 +1334,6 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
                     print(f"\n[Excel] Failed to finalize workbook: {e}")
             _deliver_hook([])  # no pairwise here
             return
-
         if cfg["analysis"] == "Descriptives":
             try:
                 cl = float(cfg.get("ci_level", "0.95"))
@@ -1334,7 +1359,6 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
                     print(f"\n[Excel] Failed to finalize workbook: {e}")
             _deliver_hook([])  # no pairwise here
             return
-
         if cfg["analysis"] == "ANOVA":
             group_arrays = [np.array(data_dict[c], dtype=float) for c in categories_all]
             f_stat, p_val = stats.f_oneway(*group_arrays)
@@ -1353,7 +1377,6 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
                     pairwise_results = run_t_ind_vs_ref(data_dict, ref, equal_var=True, correction=correction, exclude=exclude_vs)
                 else:
                     pairwise_results = run_t_ind_all_pairs(data_dict, equal_var=True, correction=correction)
-
         elif cfg["analysis"] == "ANOVA (two-way)":
             try:
                 anova_tbl, _ = run_two_way_anova(df_data, cfg.get("factor_a",""), cfg.get("factor_b",""))
@@ -1363,7 +1386,6 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
                     pass
             except Exception as e:
                 print(f"\nTwo-way ANOVA error: {e}")
-
         elif cfg["analysis"] == "Kruskal":
             group_arrays = [np.array(data_dict[c], dtype=float) for c in categories_all]
             h_stat, p_val = stats.kruskal(*group_arrays)
@@ -1390,7 +1412,6 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
                     p_adj = adjust_pvals([r["p_raw"] for r in out], method=correction)
                     for r, pa in zip(out, p_adj): r["p_adj"] = float(pa)
                     pairwise_results = out
-
         elif cfg["analysis"] == "Mann–Whitney (2 groups)":
             if len(categories_all) < 2:
                 print("\nMann–Whitney: need at least 2 groups.")
@@ -1410,7 +1431,6 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
                 p_adj = adjust_pvals([r["p_raw"] for r in out], method=correction)
                 for r, pa in zip(out, p_adj): r["p_adj"] = float(pa)
                 pairwise_results = out
-
         elif cfg["analysis"] == "t_ind_equal":
             pairwise_results = (run_t_ind_vs_ref(data_dict, ref, equal_var=True, correction=correction, exclude=exclude_vs)
                                 if scope == "vs_ref" else
@@ -1433,11 +1453,9 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
                 _write_xlsx(pd.DataFrame([{"chi2_F": float(stat), "p": float(p), "groups": ",".join(map(str, groups))}]), "friedman")
             except Exception as e:
                 print(f"\nFriedman error: {e}")
-
         for r in pairwise_results:
             if "p_adj" not in r:
                 r["p_adj"] = float(r.get("p_raw", np.nan))
-
         # ---- EXPORTS: RAW + LONG TABLE ----
         if cfg["export_csv"] and pairwise_results:
             pd.DataFrame(pairwise_results).to_csv(cfg["export_csv"], index=False)
@@ -1451,10 +1469,8 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
                 df_long.to_csv(long_csv_path, index=False)
                 print(f"\nExported long table to: {long_csv_path}")
             _write_xlsx(pd.DataFrame(pairwise_results), "posthoc")
-
         # Show significance table
         show_pairwise_long_table_figure(pairwise_results)
-
     # ===================== PLOTTING (uses categories_plot, data_plot, df_plot) =====================
     # If nothing selected and hide is on: show a blank note figure and exit
     if len(categories_plot) == 0:
@@ -1484,18 +1500,15 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
                 print(f"\n[Excel] Failed to finalize workbook: {e}")
         _deliver_hook(pairwise_results)
         return
-
     global_max = max([max(vals) for vals in data_plot.values()]) if any(len(v) for v in data_plot.values()) else 1.0
     base_gap = base_gap_factor * global_max
     stack_step = stack_step_factor * global_max
     line_h = line_height_factor * global_max
-
     x = np.arange(len(categories_plot))
     means = np.array([np.mean(data_plot[c]) for c in categories_plot], dtype=float)
     sems = np.array([np.std(data_plot[c], ddof=1)/np.sqrt(len(data_plot[c])) if len(data_plot[c])>1 else 0 for c in categories_plot], dtype=float)
     bar_tops = np.array([max(data_plot[c]) if len(data_plot[c]) > 0 else (means[i] if len(means)>i else 0)
                          for i, c in enumerate(categories_plot)], dtype=float)
-
     def _nice_number(xv: float) -> float:
         if xv <= 0: return 1.0
         exp = np.floor(np.log10(xv)); frac = xv / (10 ** exp)
@@ -1504,12 +1517,10 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
         elif frac <= 5: nice = 5
         else: nice = 10
         return nice * (10 ** exp)
-
     mode = cfg.get("bracket_mode", "Default ref only")
     selected_csv_pairs = cfg.get("selected_pairs", "").strip()
     selected_tokens = [s for s in (selected_csv_pairs.split(",") if selected_csv_pairs else []) if s]
     include_nonsig_flag = (cfg.get("include_nonsig","False").lower() == "true")
-
     if not only_plot:
         if mode == "All significant" or mode == "All (ignore significance)":
             all_tokens = []
@@ -1534,14 +1545,11 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
             )
     else:
         bracket_layout, required_ymax = [], max(bar_tops) * 1.05 if len(bar_tops) else 1.0
-
     if len(bracket_layout) > 20:
         bracket_layout = bracket_layout[:20]
-
     if not only_plot and cfg["analysis"] == "t_one_sample" and single_annos:
         if default_ref in categories_plot:
             required_ymax = max(required_ymax, bar_tops[categories_plot.index(default_ref)] + base_gap + line_h)
-
     tallest = float(np.nanmax(bar_tops)) if len(bar_tops) else 1.0
     desired_step = max(1.0, tallest / 4.0)
     step = _nice_number(desired_step)
@@ -1549,7 +1557,6 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
     if tallest > 4 * step:
         step = max(1, int(_nice_number(tallest / 4.0 * 1.01)))
     labeled_max = 4 * step
-
     if y_min_user is not None and y_max_user is not None:
         y_min = y_min_user
         y_max = y_max_user
@@ -1558,12 +1565,10 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
         tallest_bar = float(np.nanmax(bar_tops)) if len(bar_tops) else 1.0
         y_max = tallest_bar * 1.2
         y_max = max(y_max, required_ymax)
-
     plt.rcParams.update({"figure.dpi":160, "axes.spines.top":False, "axes.spines.right":False, "axes.linewidth":1.0})
     height_in = max(3.6, 3.4 + 0.28 * (0 if only_plot else max(0, min(len(bracket_layout), 20))))
     width_in = max(3.2, 1.2 + 0.48 * len(categories_plot))
     ptype = (cfg.get("plot_type") or "Bar + scatter").strip()
-
     if ptype == "None":
         if cfg["save_fig"]:
             print("\n[Plot None] 'save_fig' was set but plot type is 'None'; no figure was saved.")
@@ -1578,14 +1583,12 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
                 print(f"\n[Excel] Failed to finalize workbook: {e}")
         _deliver_hook(pairwise_results)
         return
-
     cross_graph = (cfg.get('cross_graph_brackets','False').lower() == 'true')
     if cross_graph:
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(width_in*2, height_in))
         draw_cross_graph_bracket(fig, ax1, ax2, 0, 0, y_max*0.9, 'p<0.05')
     plt.ion()
     fig, ax = plt.subplots(figsize=(width_in, height_in))
-
     def on_scroll(event):
         if event.inaxes != ax:
             return
@@ -1608,20 +1611,17 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
         ax.set_ylim(new_ymin, new_ymax)
         ax.figure.canvas.draw_idle()
     fig.canvas.mpl_connect('scroll_event', on_scroll)
-
     series_factor = cfg.get("series_factor","").strip()
     x_col = cfg.get("x_col","").strip()
     series_means = None
     series_colors = None
     x_vec = None
-
     if ptype in {"Lines (series)","Areas (series)","Regression (series)","Exponential regression (series)","Regression (global)","Exponential regression (global)"}:
         x_vec = build_group_x(categories_plot, df_plot, x_col if x_col else None)
         if ptype in {"Lines (series)","Areas (series)","Regression (series)"}:
             series_means = build_series_means(categories_plot, df_plot, series_factor if series_factor else None)
             series_levels_list = list(series_means.keys())
             series_colors = ensure_colors_for_keys(series_levels_list, {})
-
     if ptype == "Strip":
         plot_strip(ax, categories_plot, data_plot, colors_cat)
     elif ptype == "Mean ± CI":
@@ -1638,6 +1638,10 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
         plot_mean_ci(ax, categories_plot, means, ci_half, colors_cat, bar=False, line=True, ci_label="95% CI")
     elif ptype == "Line (means)":
         plot_line_means(ax, categories_plot, means)
+    elif ptype == "Boxplot":
+        plot_box(ax, categories_plot, data_plot, colors_cat)
+    elif ptype == "Violin":
+        plot_violin(ax, categories_plot, data_plot, colors_cat)
     elif ptype == "Area (quartiles stacked)":
         plot_area_quartiles(ax, categories_plot, data_plot)
     elif ptype == "Lines (series)":
@@ -1651,7 +1655,6 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
         run_and_plot_regression_global(ax, x_vec, categories_plot, y_means_global, color="#2F3B52")
     elif ptype == "Pie chart":
         plot_pie(ax, categories_plot, data_plot, colors_cat, value_mode="sum")
-
     elif ptype == "Exponential regression (series)":
         x_vec = build_group_x(categories_plot, df_plot, x_col if x_col else None)
         series_means = build_series_means(
@@ -1668,7 +1671,6 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
             series_means,
             series_colors
         )
-
     elif ptype == "Exponential regression (global)":
         x_vec = build_group_x(categories_plot, df_plot, x_col if x_col else None)
         y_means = np.array(
@@ -1676,11 +1678,9 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
             dtype=float
         )
         run_and_plot_exponential_regression_global(ax, x_vec, y_means)
-
     elif ptype == "Kaplan–Meier survival":
         # Requires df_plot to contain 'time' and 'event'
         plot_kaplan_meier(ax, df_plot)
-
     else:
         bar_width = 0.70
         for i, cat in enumerate(categories_plot):
@@ -1696,15 +1696,12 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
                        edgecolor="#444444", linewidths=0.6, alpha=1.0, zorder=3)
         ax.set_xticks(x)
         ax.set_xticklabels(categories_plot, rotation=45, ha="right", fontsize=8)
-
     if ptype == "Pie chart":
         ax.set_ylabel("")
     else:
         ax.set_ylabel(y_axis_label, fontsize=15)
-
     if not ptype.startswith("Regression") and ptype != "Pie chart":
         ax.set_ylim(y_min, y_max)
-
     tick_val = cfg.get("tick", "auto")
     def _rebuild_y_ticks(y_min, y_max, tick_val, fallback_step):
         import math
@@ -1727,7 +1724,6 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
         ticks = np.round(ticks, 6)
         decimals = 0 if abs(step - round(step)) < 1e-9 else 1
         return ticks, decimals
-
     if ptype != "Pie chart":
         ticks, decimals = _rebuild_y_ticks(y_min, y_max, tick_val, step)
         ax.set_yticks(ticks)
@@ -1738,10 +1734,8 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
             ax.yaxis.set_major_formatter(formatter)
         else:
             ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _ : f"{v:.{decimals}f}"))
-
     for spine in ["left", "bottom"]:
         ax.spines[spine].set_linewidth(1.0)
-
     if ptype != "Pie chart":
         for b in bracket_layout:
             ax.plot(
@@ -1753,8 +1747,7 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
                 (b["x1"] + b["x2"]) / 2, b["y"] + line_h, b["text"],
                 ha="center", va="bottom", fontsize=6, color="black", clip_on=False, zorder=4
             )
-
-    if not only_plot and cfg["analysis"] == "t_one_sample" and single_annos and ptype != "Pie chart":
+    if (not only_plot and cfg["analysis"] == "t_one_sample" and single_annos and ptype != "Pie chart"):
         if default_ref in categories_plot:
             xi = categories_plot.index(default_ref); y_top = bar_tops[xi] + base_gap
             for r in single_annos:
@@ -1762,16 +1755,13 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
                     x[xi], y_top + line_h, format_sig_marker(r["p_adj"], sig_marker_mode),
                     ha="center", va="bottom", fontsize=9, color="black", clip_on=False, zorder=4
                 )
-
     if (cfg.get("plot_type") or "").strip() in {
         "Mean ± CI","Line ± CI","Area (quartiles stacked)",
         "Lines (series)","Areas (series)","Regression (series)","Regression (global)"
     }:
         ax.legend(loc="best", fontsize=9)
-
     ax.set_title("", fontsize=10, pad=10)
     plt.tight_layout()
-
     if cfg["save_fig"]:
         ext = os.path.splitext(cfg["save_fig"])[1].lower()
         if ext in {".tif", ".tiff"}:
@@ -1779,9 +1769,7 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
         else:
             fig.savefig(cfg["save_fig"], dpi=300, bbox_inches="tight")
         print(f"\nSaved figure to: {cfg['save_fig']}")
-
     plt.show(block=True)
-
     if cfg["show_hists"].lower() == "true":
         bins_spec = cfg["hist_bins"]
         try:
@@ -1791,7 +1779,6 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
         plot_histograms_panel(categories=categories_plot, data=data_plot, colors=colors_cat, max_groups=max_h,
                               bins_spec=bins_spec, title=f"Histograms per group (max {max_h}, bins={bins_spec})")
         plt.ion(); plt.show(block=True)
-
     if excel_writer is not None:
         try:
             cfg_df = pd.DataFrame(sorted(cfg.items()), columns=["key","value"])
@@ -1801,20 +1788,15 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
             print(f"\nExported Excel workbook to: {xlsx_path} (sheets: {_excel_sheets_written + 2})")
         except Exception as e:
             print(f"\n[Excel] Failed to finalize workbook: {e}")
-
     _deliver_hook(pairwise_results)
-
 # GUI
 # GUI (SCROLLABLE START MENU ADDED)
-
-
 def open_config_gui():
     import platform
     root = tk.Tk()
     root.title("Analysis Setup")
     root.geometry("1200x800")  # Larger main window
     root.resizable(True, True)
-
     # SCROLLABLE WRAPPER
     outer = ttk.Frame(root)
     outer.pack(fill="both", expand=True)
@@ -1825,18 +1807,62 @@ def open_config_gui():
     vscroll.pack(side="right", fill="y")
     main = ttk.Frame(canvas, padding=(8, 6))
     main_window_id = canvas.create_window((0, 0), window=main, anchor="nw")
-
     def on_main_configure(_event=None):
         canvas.configure(scrollregion=canvas.bbox("all"))
     main.bind("<Configure>", on_main_configure)
-
     def on_canvas_configure(event):
         try:
             canvas.itemconfigure(main_window_id, width=event.width)
         except tk.TclError:
             pass
     canvas.bind("<Configure>", on_canvas_configure)
+    # --- Tool opener: Multiple regression ---
 
+    def open_multiple_regression():
+        # Build a groups callback consistent with the current UI state
+        def _groups_cb():
+            groups_all = data_dict or {}
+            if hide_deselected_plot.get():
+                chosen = [k for k, v in selected_groups.items() if v.get()]
+            else:
+                chosen = list(groups_all.keys())
+            out = {}
+            for k in chosen:
+                arr = np.asarray(groups_all.get(k, []), dtype=float)
+                arr = arr[np.isfinite(arr)]
+                if arr.size > 0:
+                    out[k] = arr
+            return out
+
+        try:
+            MultipleRegressionWindow(
+                master=root,
+                get_groups_callback=_groups_cb,   # use the local callback
+                title="Multiple regression"
+            )
+        except Exception as ex:
+            messagebox.showerror("Multiple regression", f"Could not open window:\n{ex}")
+
+    # --- Tool opener: Power Analysis (define before button) ---
+    def _open_power_analysis():
+        def _groups_cb():
+            # Use loaded data_dict; optionally restrict to selected groups
+            groups_all = data_dict or {}
+            if hide_deselected_plot.get():
+                chosen = [k for k, v in selected_groups.items() if v.get()]
+            else:
+                chosen = list(groups_all.keys())
+            # Convert to clean numpy vectors and drop empties
+            out = {}
+            for k in chosen:
+                arr = np.asarray(groups_all.get(k, []), dtype=float)
+                arr = arr[np.isfinite(arr)]
+                if arr.size > 0:
+                    out[k] = arr
+            return out
+        PowerAnalysisWindow(master=root, get_groups_callback=_groups_cb)
+
+    # --- Mousewheel helpers for scroll ---
     def _bind_mousewheel(widget):
         system = platform.system()
         if system == "Windows":
@@ -1846,7 +1872,6 @@ def open_config_gui():
         else:
             widget.bind_all("<Button-4>", _on_mousewheel_x11)
             widget.bind_all("<Button-5>", _on_mousewheel_x11)
-
     def _unbind_mousewheel(widget):
         system = platform.system()
         if system == "Windows":
@@ -1856,27 +1881,63 @@ def open_config_gui():
         else:
             widget.unbind_all("<Button-4>")
             widget.unbind_all("<Button-5>")
-
     def _on_mousewheel_windows(event):
         canvas.yview_scroll(-int(event.delta / 120) * 3, "units")
-
     def _on_mousewheel_darwin(event):
         canvas.yview_scroll(-int(event.delta), "units")
-
     def _on_mousewheel_x11(event):
         if event.num == 4:
             canvas.yview_scroll(-3, "units")
         elif event.num == 5:
             canvas.yview_scroll(3, "units")
-
     canvas.bind("<Enter>", lambda _e: _bind_mousewheel(canvas))
     canvas.bind("<Leave>", lambda _e: _unbind_mousewheel(canvas))
+
+    # --- NEW: Top toolbar (Canvas, Calculator, Power analysis) ---
+
+    def build_toolbar(parent):
+        # Create the toolbar frame and place it at the top of 'parent'
+        bar = ttk.Frame(parent)
+        bar.grid(row=0, column=0, columnspan=6, sticky="we", pady=(0, 8))
+
+        # Allow the toolbar row to stretch
+        for c in range(6):
+            parent.grid_columnconfigure(c, weight=1)
+
+        # Canvas
+        ttk.Button(
+            bar, text="Canvas",
+            command=lambda: InteractivePlane(root)
+        ).pack(side="left", padx=(0, 8))
+
+        # Calculator
+        ttk.Button(
+            bar, text="Calculator",
+            command=lambda: launch_calculator(master=None)
+        ).pack(side="left", padx=(0, 8))
+
+        # Power analysis…
+        ttk.Button(
+            bar, text="Power analysis…",
+            command=_open_power_analysis
+        ).pack(side="left", padx=(0, 0))
+
+        # Multiple regression
+        ttk.Button(
+            bar, text="Multiple regression",
+            command=open_multiple_regression
+        ).pack(side="left", padx=(6, 0))
+
+        return bar
+
+
+
+    toolbar = build_toolbar(main)  # place at the top
 
     # Main layout/content
     data_dict: Dict[str, List[float]] = {}
     df_data = pd.DataFrame(columns=["group", "value"])
     categories: List[str] = []
-
     def default_ref(cats: List[str]) -> str:
         return "-dox" if "-dox" in cats else (cats[0] if cats else "")
 
@@ -1933,7 +1994,6 @@ def open_config_gui():
             last_results["alpha"] = float(res.get("alpha", alpha.get()))
         except Exception:
             pass
-
     def build_pair_tokens(cats: List[str]) -> List[str]:
         toks = []
         cats_sorted = sorted(cats, key=str)
@@ -1942,7 +2002,6 @@ def open_config_gui():
                 a, b = cats_sorted[i], cats_sorted[j]
                 toks.append(f"{a}\n{b}")
         return toks
-
     def rebuild_display_maps(cats: List[str]) -> List[str]:
         display_to_token.clear()
         token_to_display.clear()
@@ -1954,11 +2013,14 @@ def open_config_gui():
             token_to_display[tok] = disp
         return list(display_to_token.keys())
 
-    r = 0
+    # Start form rows BELOW the toolbar
+    r = 1
+
     ttk.Label(main, text="Data file (CSV/Excel) (group,value,[subject], …):").grid(row=r, column=0, sticky="w")
     ttk.Entry(main, textvariable=csv_path, width=36).grid(row=r, column=1, columnspan=2, sticky="we", padx=(4,0))
-    ttk.Checkbutton(main, text="Interpret columns as groups", variable=interpret_wide_var).grid(row=r, column=3, sticky="e")
+    ttk.Checkbutton(main, text="Interpret columns as groups", variable=interpret_wide_var).grid(row=r, column=4, sticky="e")
     r += 1
+
 
     def browse_data_file():
         nonlocal data_dict, df_data, categories
@@ -1996,8 +2058,7 @@ def open_config_gui():
             print("File load error:\n", traceback.format_exc())
             messagebox.showerror("Error loading file", f"{type(e).__name__}: {e}")
 
-    ttk.Button(main, text="Browse…", command=browse_data_file).grid(row=r, column=3, sticky="e")
-    r += 1
+    ttk.Button(main, text="Browse…", command=browse_data_file).grid(row=r-1, column=3, sticky="e")
 
     ttk.Label(main, text="Primary analysis:").grid(row=r, column=0, sticky="w")
     analysis_cb = ttk.Combobox(
@@ -2024,13 +2085,13 @@ def open_config_gui():
             "None",
             "Bar + scatter", "Strip",
             "Mean ± CI", "Line ± CI", "Line (means)",
+            "Boxplot", "Violin",
             "Area (quartiles stacked)",
             "Lines (series)", "Areas (series)",
             "Regression (series)",
             "Exponential regression (series)",
             "Regression (global)",
             "Exponential regression (global)",
-            
             "Pie chart"
         ]
     ).grid(row=r, column=1, sticky="w", padx=(4,0))
@@ -2120,7 +2181,6 @@ def open_config_gui():
     pair_combo.grid(row=0, column=1, sticky="w", padx=(4,0))
     add_btn = ttk.Button(custom_pairs_frame, text="Add")
     add_btn.grid(row=0, column=2, sticky="w", padx=(6,0))
-
     ttk.Label(custom_pairs_frame, text="Selected pairs:").grid(row=1, column=0, sticky="w", pady=(6,0))
     selected_list = tk.Listbox(custom_pairs_frame, height=8, width=36, exportselection=False)
     selected_list.grid(row=2, column=0, columnspan=2, sticky="nsew", pady=(2,0))
@@ -2128,7 +2188,6 @@ def open_config_gui():
     remove_btn.grid(row=2, column=2, sticky="nw", padx=(6,0))
     clear_btn = ttk.Button(custom_pairs_frame, text="Clear")
     clear_btn.grid(row=3, column=2, sticky="nw", padx=(6,0), pady=(4,0))
-
     include_nonsig_chk = ttk.Checkbutton(custom_pairs_frame, text="Include non-significant (ignore α)", variable=include_nonsig)
     include_nonsig_chk.grid(row=4, column=0, columnspan=2, sticky="w", pady=(6,0))
     done_btn = ttk.Button(custom_pairs_frame, text="Done")
@@ -2169,7 +2228,7 @@ def open_config_gui():
         if displays:
             pair_combo.set(displays[0]); add_btn.state(["!disabled"])
         else:
-            pair_combo.set(""); add_btn.state(["disabled"]) 
+            pair_combo.set(""); add_btn.state(["disabled"])
 
     def refresh_groups():
         nonlocal categories
@@ -2204,7 +2263,6 @@ def open_config_gui():
         for tok in current:
             selected_list.insert("end", token_to_display.get(tok, tok))
         y_label_cb['values'] = load_y_label_history()
-
         # Ensure there is a BooleanVar for each category (default True)
         for g in categories:
             if g not in selected_groups:
@@ -2243,7 +2301,6 @@ def open_config_gui():
             prev_bracket_mode["value"] = mode
             custom_pairs_frame.grid_remove()
     bracket_mode_cb.bind("<<ComboboxSelected>>", on_bracket_mode_changed)
-
     def on_done_custom():
         bracket_mode.set(prev_bracket_mode["value"])
         on_bracket_mode_changed()
@@ -2259,7 +2316,6 @@ def open_config_gui():
 
     # NEW: hide deselected checkbox (affects plotting only)
     hide_deselected_plot = tk.BooleanVar(value=True)
-
     def pick_color_for(group: str):
         cur = current_colors.get(group, "")
         if not (isinstance(cur, str) and cur.startswith("#") and len(cur) in (4, 7)):
@@ -2292,24 +2348,20 @@ def open_config_gui():
             btn.grid(row=i, column=2, sticky="w", padx=(0,6), pady=2)
             color_buttons[g] = btn
 
-    toolbar = ttk.Frame(colors_frame)
-    toolbar.grid(row=1, column=0, sticky="we", pady=(6,0))
-
+    toolbar_frame = ttk.Frame(colors_frame)
+    toolbar_frame.grid(row=1, column=0, sticky="we", pady=(6,0))
     def clear_all_colors():
         current_colors.clear()
         rebuild_color_rows()
-
     def set_default_palette():
         auto = ensure_colors_for_keys(categories, {})
         current_colors.clear()
         current_colors.update(auto)
         rebuild_color_rows()
-
     def select_all_groups():
         for g in selected_groups:
             selected_groups[g].set(True)
         rebuild_color_rows()
-
     def select_only_significant():
         prs = last_results.get("pairwise_results", []) or []
         try:
@@ -2328,7 +2380,7 @@ def open_config_gui():
         keep = set()
         for r in prs:  # Always global (Option 2)
             if pval_of(r) <= a:
-                if r.get("ref"):   keep.add(str(r["ref"]))
+                if r.get("ref"): keep.add(str(r["ref"]))
                 if r.get("group"): keep.add(str(r["group"]))
         if not keep:
             messagebox.showinfo("Select only significant", f"No significant groups found at α={a}.")
@@ -2340,11 +2392,10 @@ def open_config_gui():
             selected_groups[g].set(g in keep)
         rebuild_color_rows()
 
-    ttk.Button(toolbar, text="Reset (auto)", command=clear_all_colors).grid(row=0, column=0, padx=(0,6))
-    ttk.Button(toolbar, text="Fill with palette", command=set_default_palette).grid(row=0, column=1, padx=(0,6))
-    ttk.Checkbutton(toolbar, text="Hide deselected groups in plots", variable=hide_deselected_plot).grid(row=0, column=2, padx=(12,0))
-  
-    ttk.Button(toolbar, text="Select all groups", command=select_all_groups).grid(row=0, column=4, padx=(12,0))
+    ttk.Button(toolbar_frame, text="Reset (auto)", command=clear_all_colors).grid(row=0, column=0, padx=(0,6))
+    ttk.Button(toolbar_frame, text="Fill with palette", command=set_default_palette).grid(row=0, column=1, padx=(0,6))
+    ttk.Checkbutton(toolbar_frame, text="Hide deselected groups in plots", variable=hide_deselected_plot).grid(row=0, column=2, padx=(12,0))
+    ttk.Button(toolbar_frame, text="Select all groups", command=select_all_groups).grid(row=0, column=4, padx=(12,0))
 
     rebuild_color_rows()
 
@@ -2385,7 +2436,6 @@ def open_config_gui():
             messagebox.showerror("Default ref", "Default ref (brackets) not found in data."); return
         if exclude_var.get() not in categories + [""]:
             messagebox.showerror("Exclude", "Exclude must be one of the groups or empty."); return
-
         def _is_float(s):
             try:
                 float(s); return True
@@ -2409,10 +2459,8 @@ def open_config_gui():
             if hmax < 1 or hmax > 30: raise ValueError
         except Exception:
             messagebox.showerror("Histograms", "Max histograms must be an integer between 1 and 30."); return
-
         # Build selected groups CSV (for plotting hide feature)
         selected_csv_groups = ",".join([g for g in categories if selected_groups.get(g, tk.BooleanVar(value=True)).get()])
-
         cfg = {
             "csv": csv_path.get().strip(),
             "analysis": analysis.get(),
@@ -2460,15 +2508,9 @@ def open_config_gui():
         root.destroy()
 
     ttk.Button(btns, text="Run", command=on_run).grid(row=0, column=0, padx=6)
-    
-    ttk.Button(btns, text="Geometry Canvas", command=lambda: InteractivePlane(root)).grid(row=0, column=2, padx=6)
+    # (Removed duplicate 'Geometry Canvas' button — now in top toolbar)
 
-    def open_calc():
-        launch_calculator(master=None)   # independent window
-
-    ttk.Button(main, text="Calculator", command=open_calc).grid(row=r, column=4)
-
-    r += 1
+    # Advanced section toggle
     adv_toggle = ttk.Checkbutton(
         main,
         text="Show advanced significance bars (spacing)",
@@ -2499,7 +2541,6 @@ def open_config_gui():
 
     ttk.Label(io_frame, text="Save figure to:").grid(row=0, column=0, sticky="w")
     ttk.Entry(io_frame, textvariable=save_fig, width=34).grid(row=0, column=1, sticky="we", padx=(4,6))
-
     def _browse_save_fig():
         path = filedialog.asksaveasfilename(
             title="Save figure",
@@ -2512,7 +2553,6 @@ def open_config_gui():
 
     ttk.Label(io_frame, text="Export CSV to:").grid(row=0, column=3, sticky="w")
     ttk.Entry(io_frame, textvariable=export_csv, width=34).grid(row=0, column=4, sticky="we", padx=(4,0))
-
     def _browse_export_csv():
         path = filedialog.asksaveasfilename(
             title="Export CSV",
@@ -2525,7 +2565,6 @@ def open_config_gui():
 
     ttk.Label(io_frame, text="Export Excel (.xlsx) to:").grid(row=1, column=0, sticky="w", pady=(4,0))
     ttk.Entry(io_frame, textvariable=export_xlsx, width=34).grid(row=1, column=1, sticky="we", padx=(4,6), pady=(4,0))
-
     def _browse_export_xlsx():
         path = filedialog.asksaveasfilename(
             title="Save results workbook",
@@ -2554,9 +2593,7 @@ def main():
 if __name__ == "__main__":
     main()
 
-
 # PATCHED EXPONENTIAL REGRESSION
-
 # === Exponential Regression Additions ===
 def run_and_plot_exponential_regression(ax, x_vec, y_vec, color="#2F3B52"):
     import numpy as np
@@ -2574,7 +2611,6 @@ def run_and_plot_exponential_regression(ax, x_vec, y_vec, color="#2F3B52"):
     yfit=a*np.exp(b*xfit)
     ax.plot(xfit,yfit,color=color,lw=2,label=f"Exp fit: y={a:.3g}e^({b:.3g}x) R2={r2:.3f}")
     return ax
-
 def run_and_plot_exponential_regressions(ax,x_vec,categories,series_means,colors):
     import numpy as np
     from scipy import stats
