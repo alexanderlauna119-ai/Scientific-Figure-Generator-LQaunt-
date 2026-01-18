@@ -22,7 +22,7 @@ class InteractivePlane(tk.Toplevel):
         super().__init__(master)
         self.title(title)
 
-        # --- Open in full window / maximized (cross-platform best effort)
+        # -- Open in full window / maximized (cross-platform best effort)
         try:
             self.state("zoomed")  # Windows/macOS (where supported)
         except Exception:
@@ -31,12 +31,13 @@ class InteractivePlane(tk.Toplevel):
             except Exception:
                 self.geometry(f"{self.winfo_screenwidth()}x{self.winfo_screenheight()}+0+0")
 
-        # --- FIGURE
+        # -- FIGURE
         self.fig, self.ax = plt.subplots(figsize=(9.5, 7))
         self.ax.set_aspect("equal", adjustable="box")
         self.ax.grid(True, linestyle="--", alpha=0.3)
         self.ax.axhline(0, color="#444")
         self.ax.axvline(0, color="#444")
+
         # NEW: keep x/y limits fixed when new artists are added
         self.ax.set_autoscale_on(False)
 
@@ -44,9 +45,10 @@ class InteractivePlane(tk.Toplevel):
         self.canvas_widget = self.canvas.get_tk_widget()
         self.canvas_widget.pack(side="left", fill="both", expand=True)
 
-        # --- SIDEBAR (OBJECT INSPECTOR)
+        # -- SIDEBAR (OBJECT INSPECTOR)
         self.sidebar = ttk.Frame(self)
         self.sidebar.pack(side="right", fill="y")
+
         ttk.Label(
             self.sidebar, text="Object Inspector",
             font=("Segoe UI", 12, "bold")
@@ -55,6 +57,7 @@ class InteractivePlane(tk.Toplevel):
         # TreeView (with its own scrollbar)
         self.tree_frame = ttk.Frame(self.sidebar)
         self.tree_frame.pack(fill="x")
+
         self.tree = ttk.Treeview(
             self.tree_frame,
             columns=("type", "summary"),
@@ -65,6 +68,7 @@ class InteractivePlane(tk.Toplevel):
         self.tree.heading("summary", text="Summary")
         self.tree.column("type", width=90, anchor="w")
         self.tree.column("summary", width=260, anchor="w")
+
         self.tree_scroll = ttk.Scrollbar(self.tree_frame, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=self.tree_scroll.set)
         self.tree.grid(row=0, column=0, sticky="nsew")
@@ -77,7 +81,7 @@ class InteractivePlane(tk.Toplevel):
             font=("Segoe UI", 11, "bold")
         ).pack(pady=(10, 4), anchor="w")
 
-        # --- SCROLLABLE PROPERTY GRID (Canvas + inner Frame + Scrollbar)
+        # -- SCROLLABLE PROPERTY GRID (Canvas + inner Frame + Scrollbar)
         self.prop_container = ttk.Frame(self.sidebar)
         self.prop_container.pack(fill="both", expand=True)
         self.prop_canvas = tk.Canvas(self.prop_container, borderwidth=0, highlightthickness=0)
@@ -93,21 +97,20 @@ class InteractivePlane(tk.Toplevel):
         self.prop_vsb.grid(row=0, column=1, sticky="ns")
         self.prop_container.rowconfigure(0, weight=1)
         self.prop_container.columnconfigure(0, weight=1)
-
         # Optional: mouse wheel scrolling over property grid
         self.prop_canvas.bind("<Enter>", lambda e: self._bind_prop_mousewheel(True))
         self.prop_canvas.bind("<Leave>", lambda e: self._bind_prop_mousewheel(False))
 
-        self.prop_entries = {}          # for numeric/text props
-        self.prop_color_controls = {}   # for color props
+        self.prop_entries = {}         # for numeric/text props
+        self.prop_color_controls = {}  # for color props
 
-        # --- STATUS BAR
+        # -- STATUS BAR
         self.status = tk.StringVar(
             value="Left-click: point \nRight-click: text \nWheel: zoom \nSpace: pan \nShift: snap"
         )
         ttk.Label(self, textvariable=self.status).pack(fill="x")
 
-        # --- INTERNAL STORAGE
+        # -- INTERNAL STORAGE
         self._points = []
         self._labels = []
         self._segments = []
@@ -135,7 +138,7 @@ class InteractivePlane(tk.Toplevel):
         self._sel_rect = None
         self._sel_start = None
 
-        # --- REGISTRY FOR INSPECTOR
+        # -- REGISTRY FOR INSPECTOR
         self.object_counter = {
             "point": 0,
             "segment": 0,
@@ -147,7 +150,7 @@ class InteractivePlane(tk.Toplevel):
         }
         self.registry = {}  # id → {type, ref, props}
 
-        # --- COLOR PALETTE
+        # -- COLOR PALETTE
         self.COLOR_PALETTE = OrderedDict([
             ("tab:blue", "#1f77b4"),
             ("tab:orange", "#ff7f0e"),
@@ -169,7 +172,7 @@ class InteractivePlane(tk.Toplevel):
             ("teal", "#008080"),
         ])
 
-        # --- EVENT CONNECTIONS
+        # -- EVENT CONNECTIONS
         cid = self.canvas.mpl_connect
         cid("button_press_event", self._on_press)
         cid("button_release_event", self._on_release)
@@ -233,7 +236,11 @@ class InteractivePlane(tk.Toplevel):
         if k == "text":
             return p["text"]
         if k == "curve":
-            return p.get("info", p.get("model", "curve"))
+            info = p.get("info", p.get("model", "curve"))
+            r2 = p.get("r2", None)
+            if r2 is not None:
+                return f"{info} (R²={r2:.3f})"
+            return info
         return ""
 
     def _refresh_object_list(self):
@@ -254,7 +261,6 @@ class InteractivePlane(tk.Toplevel):
         top.title(title)
         top.transient(self)
         top.grab_set()
-
         outer = ttk.Frame(top)
         outer.pack(fill="both", expand=True)
 
@@ -383,7 +389,6 @@ class InteractivePlane(tk.Toplevel):
             "curve": ("color",),
         }
         color_keys = color_keys_by_kind.get(data["type"], ())
-
         for key, val in props.items():
             if key in color_keys:
                 def make_apply(k):
@@ -393,10 +398,8 @@ class InteractivePlane(tk.Toplevel):
                         self._refresh_object_list()
                         self.canvas.draw_idle()
                     return apply_color
-
                 ctrl = self._make_color_row(self.prop_inner, key, str(val), make_apply(key))
                 self.prop_color_controls[key] = ctrl
-
             elif key in ("lw",):
                 row = ttk.Frame(self.prop_inner)
                 row.pack(fill="x", pady=2)
@@ -436,6 +439,7 @@ class InteractivePlane(tk.Toplevel):
         obj = self.registry[oid]
         props = obj["props"]
         ref = obj["ref"]
+
         if key in ("lw",):
             try:
                 val = float(raw)
@@ -567,7 +571,6 @@ class InteractivePlane(tk.Toplevel):
                 break
         if not found_oid:
             return
-
         data = self.registry[found_oid]
         t = data["type"]
         if t in ("segment", "curve"):
@@ -582,7 +585,6 @@ class InteractivePlane(tk.Toplevel):
             data["props"]["edgecolor"] = chosen
             try: a.set_edgecolor(chosen)
             except Exception: pass
-
         self._refresh_object_list()
         self.canvas.draw_idle()
 
@@ -674,11 +676,9 @@ class InteractivePlane(tk.Toplevel):
             ttk.Entry(win, textvariable=v).pack(padx=10, pady=(0, 6))
             vars[f] = v
         out = {"vals": None}
-
         def ok():
             out["vals"] = {k: v.get() for k, v in vars.items()}
             win.destroy()
-
         ttk.Button(win, text="OK", command=ok).pack(pady=8)
         win.grab_set()
         win.wait_window()
@@ -705,22 +705,18 @@ class InteractivePlane(tk.Toplevel):
         self._make_color_row(win, "edgecolor", edgecolor["hex"], lambda h: edgecolor.__setitem__("hex", h))
 
         out = {"ok": False}
-
         def ok():
             out["ok"] = True
             win.destroy()
-
         ttk.Button(win, text="OK", command=ok).pack(pady=10)
         win.grab_set(); win.wait_window()
         if not out["ok"]:
             return
-
         try:
             x = float(entries["x"].get()); y = float(entries["y"].get())
             px_radius = float(entries["px_radius (pixels)"].get() or 6)
         except Exception:
             return
-
         self._add_point(x, y, px_radius=px_radius, facecolor=facecolor["hex"], edgecolor=edgecolor["hex"])
 
     def _add_point(self, x, y, px_radius=6, facecolor="#1f77b4", edgecolor="#333"):
@@ -730,7 +726,7 @@ class InteractivePlane(tk.Toplevel):
         self._points.append(p)
         oid = self._new_id("point")
         self._register_object(oid, "point", p,
-                              {"x": x, "y": y, "px_radius": px_radius, "facecolor": facecolor, "edgecolor": edgecolor})
+            {"x": x, "y": y, "px_radius": px_radius, "facecolor": facecolor, "edgecolor": edgecolor})
         self._update_point_radii()
         self.canvas.draw_idle()
         return p
@@ -754,7 +750,6 @@ class InteractivePlane(tk.Toplevel):
         win.grab_set(); win.wait_window()
         if not out["ok"]:
             return
-
         try:
             x1 = float(entries["x1"].get()); y1 = float(entries["y1"].get())
             L = float(entries["Length"].get())
@@ -762,13 +757,12 @@ class InteractivePlane(tk.Toplevel):
             lw = float(entries["lw"].get() or 2.0)
         except Exception:
             return
-
         x2 = x1 + L * np.cos(ang); y2 = y1 + L * np.sin(ang)
         line, = self.ax.plot([x1, x2], [y1, y2], lw=lw, color=color["hex"])
         self._segments.append(line)
         oid = self._new_id("segment")
         self._register_object(oid, "segment", line,
-                              {"x1": x1, "y1": y1, "x2": x2, "y2": y2, "color": color["hex"], "lw": lw})
+            {"x1": x1, "y1": y1, "x2": x2, "y2": y2, "color": color["hex"], "lw": lw})
         self.canvas.draw_idle()
 
     def _dialog_circle(self):
@@ -782,25 +776,22 @@ class InteractivePlane(tk.Toplevel):
         entries["lw"].set("2")
         edgecolor = {"hex": "#008000"}
         self._make_color_row(win, "edgecolor", edgecolor["hex"], lambda h: edgecolor.__setitem__("hex", h))
-
         out = {"ok": False}
         def ok(): out["ok"] = True; win.destroy()
         ttk.Button(win, text="OK", command=ok).pack(pady=10)
         win.grab_set(); win.wait_window()
         if not out["ok"]:
             return
-
         try:
             x = float(entries["x"].get()); y = float(entries["y"].get())
             r = float(entries["radius"].get()); lw = float(entries["lw"].get() or 2.0)
         except Exception:
             return
-
         c = Circle((x, y), r, fill=False, lw=lw, edgecolor=edgecolor["hex"])
         self.ax.add_patch(c); self._polygons.append(c)
         oid = self._new_id("circle")
         self._register_object(oid, "circle", c,
-                              {"x": x, "y": y, "r": r, "edgecolor": edgecolor["hex"], "lw": lw})
+            {"x": x, "y": y, "r": r, "edgecolor": edgecolor["hex"], "lw": lw})
         self.canvas.draw_idle()
 
     def _dialog_rectangle(self):
@@ -814,26 +805,23 @@ class InteractivePlane(tk.Toplevel):
         entries["lw"].set("2")
         edgecolor = {"hex": "#800080"}
         self._make_color_row(win, "edgecolor", edgecolor["hex"], lambda h: edgecolor.__setitem__("hex", h))
-
         out = {"ok": False}
         def ok(): out["ok"] = True; win.destroy()
         ttk.Button(win, text="OK", command=ok).pack(pady=10)
         win.grab_set(); win.wait_window()
         if not out["ok"]:
             return
-
         try:
             x = float(entries["x"].get()); y = float(entries["y"].get())
             w = float(entries["width"].get()); h = float(entries["height"].get())
             lw = float(entries["lw"].get() or 2.0)
         except Exception:
             return
-
         r = Rectangle((x, y), w, h, fill=False, lw=lw, edgecolor=edgecolor["hex"])
         self.ax.add_patch(r); self._polygons.append(r)
         oid = self._new_id("rectangle")
         self._register_object(oid, "rectangle", r,
-                              {"x": x, "y": y, "w": w, "h": h, "edgecolor": edgecolor["hex"], "lw": lw})
+            {"x": x, "y": y, "w": w, "h": h, "edgecolor": edgecolor["hex"], "lw": lw})
         self.canvas.draw_idle()
 
     # ------------------------------------------------------------
@@ -911,7 +899,7 @@ class InteractivePlane(tk.Toplevel):
             self.ax.add_patch(poly); self._polygons.append(poly)
             oid = self._new_id("polygon")
             self._register_object(oid, "polygon", poly,
-                                  {"points": pts, "facecolor": face_hex, "edgecolor": edge_hex, "alpha": 0.35, "lw": 1.5})
+                {"points": pts, "facecolor": face_hex, "edgecolor": edge_hex, "alpha": 0.35, "lw": 1.5})
             self._polygon_pts = []; self._polygon_mode = False
             self.canvas.draw_idle(); self.status.set("Polygon created.")
             self._clear_poly_preview()
@@ -963,7 +951,7 @@ class InteractivePlane(tk.Toplevel):
         self._segments.append(line)
         oid = self._new_id("segment")
         self._register_object(oid, "segment", line,
-                              {"x1": start[0], "y1": start[1], "x2": end[0], "y2": end[1], "color": seg_color, "lw": lw})
+            {"x1": start[0], "y1": start[1], "x2": end[0], "y2": end[1], "color": seg_color, "lw": lw})
         self._update_segments()
         self.canvas.draw_idle()
 
@@ -1047,7 +1035,7 @@ class InteractivePlane(tk.Toplevel):
             self._polygons.append(poly)
             oid = self._new_id("polygon")
             self._register_object(oid, "polygon", poly,
-                                  {"points": pts, "facecolor": face_hex, "edgecolor": edge_hex, "alpha": 0.35, "lw": 1.5})
+                {"points": pts, "facecolor": face_hex, "edgecolor": edge_hex, "alpha": 0.35, "lw": 1.5})
             self.canvas.draw_idle()
 
     # ------------------------------------------------------------
@@ -1089,8 +1077,8 @@ class InteractivePlane(tk.Toplevel):
                 if dpx is not None:
                     if local_best is None or dpx < local_best:
                         local_best = dpx
-                if local_best is not None and local_best <= min_px:
-                    break
+            if local_best is not None and local_best <= min_px:
+                break
             if local_best is not None and (best_curve_dist is None or local_best < best_curve_dist):
                 best_curve_dist = local_best
                 best_curve = c
@@ -1112,7 +1100,6 @@ class InteractivePlane(tk.Toplevel):
                     return shp
             except Exception:
                 pass
-
         return best
 
     def _dist_to_segment_px(self, x, y, x1, y1, x2, y2):
@@ -1145,7 +1132,6 @@ class InteractivePlane(tk.Toplevel):
             except Exception:
                 pass
         self._selected.clear(); self._last_styles.clear()
-
         if not self.tree.selection():
             for w in self.prop_inner.winfo_children():
                 w.destroy()
@@ -1273,7 +1259,7 @@ class InteractivePlane(tk.Toplevel):
                         x, y, v["Text"],
                         bbox=dict(facecolor="white", edgecolor="black", alpha=0.8)
                     )
-                self.status.set("Text added. Click to add more, Esc to exit.")
+                    self.status.set("Text added. Click to add more, Esc to exit.")
             return
 
         # Polygon mode
@@ -1313,7 +1299,7 @@ class InteractivePlane(tk.Toplevel):
                     self._line_start = None
                     self._update_line_preview(None, None)
                     self.status.set("Line created. Left-click to start another, right-click cancels, Esc to exit.")
-                return
+            return
 
         # Point mode
         if self._point_mode:
@@ -1389,18 +1375,21 @@ class InteractivePlane(tk.Toplevel):
 
         if not self._drag:
             return
-
         artist = self._drag["artist"]
         ox, oy = self._drag["offset"]
         nx = e.xdata + ox; ny = e.ydata + oy
 
         if self._snapping:
             if abs(ox) > abs(oy):
-                if isinstance(artist, Circle): ny = artist.center[1]
-                elif isinstance(artist, Text): ny = artist.get_position()[1]
+                if isinstance(artist, Circle):
+                    ny = artist.center[1]
+                elif isinstance(artist, Text):
+                    ny = artist.get_position()[1]
             else:
-                if isinstance(artist, Circle): nx = artist.center[0]
-                elif isinstance(artist, Text): nx = artist.get_position()[0]
+                if isinstance(artist, Circle):
+                    nx = artist.center[0]
+                elif isinstance(artist, Text):
+                    nx = artist.get_position()[0]
 
         if isinstance(artist, Circle):
             dx = nx - artist.center[0]; dy = ny - artist.center[1]
@@ -1452,7 +1441,7 @@ class InteractivePlane(tk.Toplevel):
                 except Exception:
                     pass
                 self._sel_rect = None
-                self._sel_start = None
+            self._sel_start = None
             self.status.set("All modes canceled.")
             self.canvas.draw_idle()
         elif e.key == "enter":
@@ -1540,7 +1529,7 @@ class InteractivePlane(tk.Toplevel):
             if self._sel_rect:
                 try: self._sel_rect.remove()
                 except Exception: pass
-            self._sel_rect = None
+                self._sel_rect = None
             self._sel_start = None
             self.status.set("Selection mode OFF.")
         self._selection_mode = turning_on
@@ -1704,24 +1693,44 @@ class InteractivePlane(tk.Toplevel):
         idx = np.argsort(xs)
         return xs[idx], ys[idx], source
 
-    def _choose_color_and_plot(self, x_fit, y_fit, info, model="curve", lw=2.0):
+    # --- R² helper ---------------------------------------------------------
+    def _r2(self, y_true, y_pred):
+        """Return coefficient of determination R² on the provided data."""
+        y_true = np.asarray(y_true, dtype=float)
+        y_pred = np.asarray(y_pred, dtype=float)
+        m = np.isfinite(y_true) & np.isfinite(y_pred)
+        if m.sum() < 2:
+            return None
+        yt = y_true[m]
+        yp = y_pred[m]
+        ss_tot = float(np.sum((yt - yt.mean())**2))
+        ss_res = float(np.sum((yt - yp)**2))
+        if ss_tot <= 1e-12:
+            # If all y are (almost) constant, define R² = 1 if perfectly fit, else 0.
+            return 1.0 if ss_res <= 1e-12 else 0.0
+        return 1.0 - ss_res / ss_tot
+
+    def _choose_color_and_plot(self, x_fit, y_fit, info, model="curve", lw=2.0, r2=None):
         color = self._ask_color_from_palette(title=f"Choose color for {model}") or "#000000"
         line, = self.ax.plot(x_fit, y_fit, color=color, lw=lw)
         self._curves.append(line)
         oid = self._new_id("curve")
         props = {"model": model, "info": info, "color": color, "lw": lw,
-                 "xdata": list(map(float, x_fit)), "ydata": list(map(float, y_fit))}
+                 "xdata": list(map(float, x_fit)), "ydata": list(map(float, y_fit)),
+                 "r2": (None if r2 is None else float(r2))}
         self._register_object(oid, "curve", line, props)
         self.canvas.draw_idle()
 
-    # --- Basic regressions
+    # -- Basic regressions ---------------------------------------------------
     def _regression_linear(self):
         x, y, src = self._get_xy_points()
         if x is None: return
         b, a = np.polyfit(x, y, 1)  # y ≈ a + b x
         yhat = a + b * x
+        r2 = self._r2(y, yhat)
         info = f"Linear: y = {a:.4g} + {b:.4g}·x"
-        self._choose_color_and_plot(x, yhat, info, model="linear")
+        # Draw along training x (already sorted)
+        self._choose_color_and_plot(x, yhat, info, model="linear", r2=r2)
         self.status.set(f"{info} (using {src})")
 
     def _regression_polynomial(self, degree=None):
@@ -1739,11 +1748,13 @@ class InteractivePlane(tk.Toplevel):
                 return
         coef = np.polyfit(x, y, degree)
         poly = np.poly1d(coef)
+        yhat = poly(x)  # predictions on training x for R²
+        r2 = self._r2(y, yhat)
         x_fit = np.linspace(float(x.min()), float(x.max()), 400)
         y_fit = poly(x_fit)
         terms = " + ".join([f"{c:.3g}·x^{k}" for k, c in zip(range(degree, -1, -1), coef)])
         info = f"Poly deg {degree}: y = {terms}"
-        self._choose_color_and_plot(x_fit, y_fit, info, model=f"poly{degree}")
+        self._choose_color_and_plot(x_fit, y_fit, info, model=f"poly{degree}", r2=r2)
         self.status.set(f"{info} (using {src})")
 
     def _regression_exponential(self):
@@ -1755,10 +1766,12 @@ class InteractivePlane(tk.Toplevel):
         Y = np.log(y)  # ln y = ln a + b x
         b, ln_a = np.polyfit(x, Y, 1)
         a = np.exp(ln_a)
+        yhat = a * np.exp(b * x)
+        r2 = self._r2(y, yhat)
         x_fit = np.linspace(float(x.min()), float(x.max()), 400)
         y_fit = a * np.exp(b * x_fit)
         info = f"Exponential: y = {a:.4g}·e^({b:.4g}·x)"
-        self._choose_color_and_plot(x_fit, y_fit, info, model="exponential")
+        self._choose_color_and_plot(x_fit, y_fit, info, model="exponential", r2=r2)
         self.status.set(f"{info} (using {src})")
 
     def _regression_logarithmic(self):
@@ -1769,10 +1782,12 @@ class InteractivePlane(tk.Toplevel):
             return
         X = np.log(x)  # y = a + b ln x
         b, a = np.polyfit(X, y, 1)
+        yhat = a + b * np.log(x)
+        r2 = self._r2(y, yhat)
         x_fit = np.linspace(float(x.min()), float(x.max()), 400)
         y_fit = a + b * np.log(x_fit)
         info = f"Logarithmic: y = {a:.4g} + {b:.4g}·ln x"
-        self._choose_color_and_plot(x_fit, y_fit, info, model="logarithmic")
+        self._choose_color_and_plot(x_fit, y_fit, info, model="logarithmic", r2=r2)
         self.status.set(f"{info} (using {src})")
 
     def _regression_power(self):
@@ -1784,13 +1799,15 @@ class InteractivePlane(tk.Toplevel):
         X = np.log(x); Y = np.log(y)  # ln y = ln a + b ln x
         b, ln_a = np.polyfit(X, Y, 1)
         a = np.exp(ln_a)
+        yhat = a * np.power(x, b)
+        r2 = self._r2(y, yhat)
         x_fit = np.linspace(float(x.min()), float(x.max()), 400)
         y_fit = a * np.power(x_fit, b)
         info = f"Power-law: y = {a:.4g}·x^{b:.4g}"
-        self._choose_color_and_plot(x_fit, y_fit, info, model="power")
+        self._choose_color_and_plot(x_fit, y_fit, info, model="power", r2=r2)
         self.status.set(f"{info} (using {src})")
 
-    # --- scikit-learn regressions (optional)
+    # -- scikit-learn regressions -------------------------------------------
     def _regression_sklearn(self, kind):
         try:
             if kind in ("ridge", "lasso", "elasticnet"):
@@ -1875,6 +1892,12 @@ class InteractivePlane(tk.Toplevel):
             self.status.set(f"Fitting failed: {ex}")
             return
 
+        # R² on training points (where supported)
+        try:
+            r2 = float(model.score(X, y))
+        except Exception:
+            r2 = None
+
         x_fit = np.linspace(float(x.min()), float(x.max()), 400).reshape(-1, 1)
         try:
             y_fit = model.predict(x_fit)
@@ -1883,10 +1906,10 @@ class InteractivePlane(tk.Toplevel):
             return
         x_fit = x_fit.ravel()
         info = f"{model_name}"
-        self._choose_color_and_plot(x_fit, y_fit, info, model=model_name)
+        self._choose_color_and_plot(x_fit, y_fit, info, model=model_name, r2=r2)
         self.status.set(f"{model_name} fit (using {src})")
 
-    # --- Run regression(s) by typing names
+    # -- Run regression(s) by typing names -----------------------------------
     def _regression_by_names_prompt(self):
         vals = self._prompt(
             "Run Regression(s) by Name",
@@ -1911,26 +1934,24 @@ class InteractivePlane(tk.Toplevel):
 
     def _run_single_model_token(self, tok: str):
         t = tok.strip().lower()
-
         # Polynomial variants
         degree = None
         if t.startswith("poly"):
             suffix = t[4:].strip()
             if suffix.isdigit():
                 degree = int(suffix)
-                return self._regression_polynomial(degree=degree)
-            else:
-                return self._regression_polynomial()
-        if t.startswith("polynomial"):
-            for sep in (" ", ":", "="):
-                if sep in t:
-                    try:
-                        deg = int(t.split(sep)[1])
-                        degree = deg
-                    except:
-                        pass
-                    break
             return self._regression_polynomial(degree=degree)
+        else:
+            if t.startswith("polynomial"):
+                for sep in (" ", ":", "="):
+                    if sep in t:
+                        try:
+                            deg = int(t.split(sep)[1])
+                            degree = deg
+                        except:
+                            pass
+                        break
+                return self._regression_polynomial(degree=degree)
 
         # Basic names
         if t in ("linear",):
@@ -1997,37 +2018,38 @@ class InteractivePlane(tk.Toplevel):
         with open(path, "r", newline="", encoding="utf-8-sig") as f:
             reader = csv.reader(f)
             rows = list(reader)
-        if not rows:
-            return 0
+            if not rows:
+                return 0
 
-        def is_float(s):
-            try:
-                float(s); return True
-            except:
-                return False
+            def is_float(s):
+                try:
+                    float(s); return True
+                except:
+                    return False
 
-        header = None
-        start_idx = 0
-        if not all(is_float(c) for c in rows[0][:2]):
-            header = [c.strip().lower() for c in rows[0]]
-            start_idx = 1
-        x_idx = y_idx = None
-        if header:
-            for i, name in enumerate(header):
-                if name == "x": x_idx = i
-                elif name == "y": y_idx = i
-        if x_idx is None or y_idx is None:
-            x_idx, y_idx = 0, 1
+            header = None
+            start_idx = 0
+            if not all(is_float(c) for c in rows[0][:2]):
+                header = [c.strip().lower() for c in rows[0]]
+                start_idx = 1
 
-        for r in rows[start_idx:]:
-            if len(r) <= max(x_idx, y_idx):
-                continue
-            try:
-                x = float(r[x_idx]); y = float(r[y_idx])
-            except:
-                continue
-            self._add_point(x, y, px_radius=6, facecolor="#1f77b4", edgecolor="#333333")
-            count += 1
+            x_idx = y_idx = None
+            if header:
+                for i, name in enumerate(header):
+                    if name == "x": x_idx = i
+                    elif name == "y": y_idx = i
+            if x_idx is None or y_idx is None:
+                x_idx, y_idx = 0, 1
+
+            for r in rows[start_idx:]:
+                if len(r) <= max(x_idx, y_idx):
+                    continue
+                try:
+                    x = float(r[x_idx]); y = float(r[y_idx])
+                except:
+                    continue
+                self._add_point(x, y, px_radius=6, facecolor="#1f77b4", edgecolor="#333333")
+                count += 1
         return count
 
     def _load_points_from_excel(self, path, ext):
@@ -2075,6 +2097,7 @@ class InteractivePlane(tk.Toplevel):
         win.grab_set()
 
         frm = ttk.Frame(win); frm.pack(fill="both", expand=True, padx=12, pady=10)
+
         ttk.Label(frm, text="f(x) =").grid(row=0, column=0, sticky="w")
         expr_var = tk.StringVar(value="sin(x)")
         expr_ent = ttk.Entry(frm, textvariable=expr_var, width=38)
@@ -2083,6 +2106,7 @@ class InteractivePlane(tk.Toplevel):
         ttk.Label(frm, text="x min").grid(row=1, column=0, sticky="w")
         xmin_var = tk.StringVar(value="-10")
         ttk.Entry(frm, textvariable=xmin_var, width=10).grid(row=1, column=1, sticky="w", padx=(0, 12))
+
         ttk.Label(frm, text="x max").grid(row=1, column=2, sticky="w")
         xmax_var = tk.StringVar(value="10")
         ttk.Entry(frm, textvariable=xmax_var, width=10).grid(row=1, column=3, sticky="w")
@@ -2098,14 +2122,14 @@ class InteractivePlane(tk.Toplevel):
 
         hint = (
             "Examples:\n"
-            "  linear  (or linear(a,b))\n"
-            "  exponential  (or exponential(a,b))\n"
-            "  logarithmic  (or logarithmic(a,b))\n"
-            "  power(a,b) / pow(a,b)  # plots a*x^b\n"
-            "  pow()  # defaults to x\n"
-            "  sin, cos, tan  (cos -> cos(x); sin(2) -> sin(2*x))\n"
-            "  exp  or exp()  -> exp(x);  ln  or ln()  -> ln(x)\n"
-            "  2x + 3, exp(0.5x), ln(x), sin(2x), cos(x/3)\n"
+            " linear (or linear(a,b))\n"
+            " exponential (or exponential(a,b))\n"
+            " logarithmic (or logarithmic(a,b))\n"
+            " power(a,b) / pow(a,b) # plots a*x^b\n"
+            " pow() # defaults to x\n"
+            " sin, cos, tan (cos -> cos(x); sin(2) -> sin(2*x))\n"
+            " exp or exp() -> exp(x); ln or ln() -> ln(x)\n"
+            " 2x + 3, exp(0.5x), ln(x), sin(2x), cos(x/3)\n"
             "Notes: implicit multiplication like 2x, x2, 2(x+1), (x+1)(x-1) is supported."
         )
         ttk.Label(frm, text=hint, foreground="#555").grid(row=3, column=0, columnspan=4, sticky="w", pady=(8, 0))
@@ -2141,91 +2165,76 @@ class InteractivePlane(tk.Toplevel):
                 return
 
             info = f"f(x) = {expr_expanded}"
-            self._choose_color_and_plot(x, y, info, model="function")
+            self._choose_color_and_plot(x, y, info, model="function", r2=None)  # not a data regression → no R²
             self.status.set(f"Plotted {info}")
             out["ok"] = True
             win.destroy()
 
         ttk.Button(btns, text="Plot", command=do_plot).pack(side="left")
         ttk.Button(btns, text="Cancel", command=win.destroy).pack(side="right")
-
         for c in range(4):
             frm.grid_columnconfigure(c, weight=1)
         expr_ent.focus_set()
         win.wait_window()
 
-    # --- Implicit multiplication insertion (FIXED to not break function calls)
+    # -- Implicit multiplication insertion (FIXED to not break function calls)
     def _insert_implicit_multiplication(self, s: str) -> str:
         """
         Insert '*' for common implicit multiplication cases, without breaking function calls.
-        - number variable : 2x    -> 2*x
-        - variable number : x2    -> x*2
-        - number '('     : 2(x)   -> 2*(x)
-        - variable '('   : x(y)   -> x*(y)  (but DO NOT change func calls like exp(x))
-        - ')' number / ')' letter : )2, )x  -> )*2, )*x
-        - ')('           :        -> ')*('
+        - number variable : 2x -> 2*x
+        - variable number : x2 -> x*2
+        - number '(' : 2(x) -> 2*(x)
+        - variable '(' : x(y) -> x*(y) (but DO NOT change func calls like exp(x))
+        - ')' number / ')' letter : )2, )x -> )*2, )*x
+        - ')(' : -> ')*('
         - number function: 5sin(x)-> 5*sin(x)
         """
         import re
-
         # 1) number followed by letter: 2x -> 2*x
         s = re.sub(r'(\d)\s*([A-Za-z])', r'\1*\2', s)
-
         # 2) letter followed by number: x2 -> x*2
         s = re.sub(r'([A-Za-z])\s*(\d)', r'\1*\2', s)
-
         # 3) number followed by '(' : 2(x+1) -> 2*(x+1)
         s = re.sub(r'(\d)\s*(\()', r'\1*\2', s)
-
         # 4) SAFE variable '(' : ONLY for single-letter variables (x or y) before '('
-        #    x(y+1) -> x*(y+1) ; but exp(x) stays exp(x)
+        # x(y+1) -> x*(y+1) ; but exp(x) stays exp(x)
         s = re.sub(r'\b([xy])\s*(\()', r'\1*\2', s, flags=re.IGNORECASE)
-
         # 5) ')' followed by number: )2 -> )*2
         s = re.sub(r'(\))\s*(\d)', r'\1*\2', s)
-
         # 6) ')' followed by letter: )x -> )*x
         s = re.sub(r'(\))\s*([A-Za-z])', r'\1*\2', s)
-
         # 7) ')(' -> ')*('
         s = re.sub(r'(\))\s*(\()', r'\1*\2', s)
-
-        # 8) number followed by known function names (sin,cos,tan,exp,ln,log, hyperbolic & inverse): 5sin(x) -> 5*sin(x)
-        s = re.sub(r'(\d)\s*(sin|cos|tan|exp|ln|log|sinh|cosh|tanh|asin|acos|atan)\s*(\()',
-                   r'\1*\2\3', s, flags=re.IGNORECASE)
-
+        # 8) number followed by known function names: 5sin(x) -> 5*sin(x)
+        s = re.sub(r'(\d)\s*(sin|cos|tan|exp|ln|log|sinh|cosh|tanh|asin|acos|atan)\s*(\()', r'\1*\2\3', s, flags=re.IGNORECASE)
         return s
 
     def _expand_function_keyword(self, s: str) -> str:
         """
         Expand friendly keywords into concrete f(x) expressions.
-
         Supported forms (case-insensitive):
-          - "linear"                   -> "x"
-          - "linear(a,b)"              -> "a + b*x"
-          - "exponential"              -> "exp(x)"             # a=1, b=1
-          - "exponential(a,b)"         -> "a*exp(b*x)"
-          - "logarithmic"              -> "ln(x)"              # a=0, b=1
-          - "logarithmic(a,b)"         -> "a + b*ln(x)"
-          - "power(a,b)" / "pow(a,b)"  -> "a * x^b"            # a=1, b=1 if omitted
-          - "pow()"                    -> "x"                  # default when no args
-          - "sin" / "cos" / "tan"      -> "sin(x)" / ...
-          - "sin(k)"                   -> "sin(k*x)"           # same for cos/tan
-          - "exp" or "exp()"           -> "exp(x)"
-          - "ln"  or "ln()"            -> "ln(x)"
+        - "linear" -> "x"
+        - "linear(a,b)" -> "a + b*x"
+        - "exponential" -> "exp(x)" # a=1, b=1
+        - "exponential(a,b)" -> "a*exp(b*x)"
+        - "logarithmic" -> "ln(x)" # a=0, b=1
+        - "logarithmic(a,b)" -> "a + b*ln(x)"
+        - "power(a,b)" / "pow(a,b)" -> "a * x^b" # a=1, b=1 if omitted
+        - "pow()" -> "x" # default when no args
+        - "sin" / "cos" / "tan" -> "sin(x)" / ...
+        - "sin(k)" -> "sin(k*x)" # same for cos/tan
+        - "exp" or "exp()" -> "exp(x)"
+        - "ln" or "ln()" -> "ln(x)"
         """
         import re
-
         t = s.strip().lower()
         if t.startswith("y="):
             t = t[2:].strip()
-
         # Simple shorthands for exp/ln
         if t == "exp" or re.fullmatch(r"exp\s*\(\s*\)", t):
             return "exp(x)"
         if t == "ln" or re.fullmatch(r"ln\s*\(\s*\)", t):
             return "ln(x)"
-
         # Trig shorthand
         simple_trig = ("sin", "cos", "tan")
         for name in simple_trig:
@@ -2237,7 +2246,6 @@ class InteractivePlane(tk.Toplevel):
                 if arg and ('x' not in arg) and all(ch not in arg for ch in '()[]{}'):
                     return f"{name}(({arg})*x)"
                 return f"{name}({arg})"
-
         # Linear
         if t == "linear":
             return "x"
@@ -2258,7 +2266,6 @@ class InteractivePlane(tk.Toplevel):
             a = a or "0"
             b = b or "1"
             return f"({a}) + ({b})*x"
-
         # Exponential keyword (parameterized)
         if t == "exponential":
             return "exp(x)"
@@ -2279,7 +2286,6 @@ class InteractivePlane(tk.Toplevel):
             a = a or "1"
             b = b or "1"
             return f"({a})*exp(({b})*x)"
-
         # Logarithmic keyword
         if t == "logarithmic":
             return "ln(x)"
@@ -2300,14 +2306,12 @@ class InteractivePlane(tk.Toplevel):
             a = a or "0"
             b = b or "1"
             return f"({a}) + ({b})*ln(x)"
-
         # power / pow (with defaults)
         m_empty = re.fullmatch(r"(power|pow)\s*\(\s*\)", t)
         if m_empty:
             if m_empty.group(1) == "pow":
                 return "x"  # pow() => x
             # power() left unchanged (no default)
-
         m = re.fullmatch(r"(power|pow)\s*\(\s*([^\)]*)\s*\)", t)
         if m:
             args = m.group(2).strip()
@@ -2325,7 +2329,6 @@ class InteractivePlane(tk.Toplevel):
             a = a or "1"
             b = b or "1"
             return f"({a}) * x^{b}"  # '^' -> '**' in evaluator
-
         # Nothing matched; return original
         return s
 
@@ -2338,14 +2341,13 @@ class InteractivePlane(tk.Toplevel):
         - If use_degrees=True, trig functions receive degrees (converted to radians).
         """
         import numpy as _np
-
         ns = {
             "x": x,
             "pi": _np.pi,
             "e": _np.e,
             "abs": _np.abs,
             "sqrt": _np.sqrt,
-            "pow": _np.power,       # NOTE: built-in pow for arrays
+            "pow": _np.power, # NOTE: built-in pow for arrays
             "sign": _np.sign,
             "clip": _np.clip,
             "where": _np.where,
@@ -2367,7 +2369,6 @@ class InteractivePlane(tk.Toplevel):
             "acos": _np.arccos,
             "atan": _np.arctan,
         }
-
         if use_degrees:
             ns.update({
                 "sin": lambda v: _np.sin(_np.deg2rad(v)),
@@ -2377,18 +2378,14 @@ class InteractivePlane(tk.Toplevel):
                 "acos": lambda v: _np.rad2deg(_np.arccos(v)),
                 "atan": lambda v: _np.rad2deg(_np.arctan(v)),
             })
-
         s = expr.strip()
         if s.lower().startswith("y="):
             s = s[2:].strip()
-
         # Insert implicit multiplication before other rewrites (FIXED)
         s = self._insert_implicit_multiplication(s)
-
         # '^' -> '**' and 'ln(' -> 'log('
         s = s.replace("^", "**")
         s = s.replace("ln(", "log(")
-
         try:
             y = eval(s, {"__builtins__": {}}, ns)
         except NameError as ex:
@@ -2396,7 +2393,6 @@ class InteractivePlane(tk.Toplevel):
         except Exception:
             raise
         return y
-
 
 # ------------------------------------------------------------
 # MAIN APPLICATION
