@@ -18,13 +18,13 @@ LQ is a Python-based data analysis tool with a GUI for statistical tests and vis
 1. Install Python 3.10+.
 3. Run the program: python main.py
 -  download
-      geometry_canvas.py for acces to the canvas function,
-      analysis_extensions.py for exponential functions,
-      scientific_calculator.py for an scientefic calculator in the bar menu
-      multiple_regression.py for multiple linear regression calculations
-      parametric_tests.py for small z- and t-test using mean, SD and n
-      power_analysis for power analysist test for all tests in the program
-      categorical_tests for Chi, odds ratio and fischers test
+-        geometry_canvas.py for acces to the canvas function,
+-        alysis_extensions.py for exponential functions,
+-        scientific_calculator.py for an scientefic calculator in the bar menu
+-        multiple_regression.py for multiple linear regression calculations
+-        parametric_tests.py for small z- and t-test using mean, SD and n
+-        power_analysis for power analysist test for all tests in the program
+-        categorical_tests for Chi, odds ratio and fischers test
    
 ### macOS
 - Install via [python.org](https://www.python.org) or Homebrew:
