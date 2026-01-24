@@ -1,3 +1,5 @@
+<img width="957" height="455" alt="image" src="https://github.com/user-attachments/assets/63f6c5a0-cea1-4b84-b521-05938360b038" />
+
 # Scientific Figure Generator: Lightweight Tool for Fast, Customizable Data Visualization and Analysis
 A statistical program with good quality for exported pictures. The plots are costumizable and easy to use.  
 
