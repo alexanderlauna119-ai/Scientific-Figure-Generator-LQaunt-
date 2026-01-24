@@ -35,6 +35,7 @@ LQ is a Python-based data analysis tool with a GUI for statistical tests and vis
 <img width="949" height="496" alt="image" src="https://github.com/user-attachments/assets/f05b47fd-01a2-4cd7-8cba-da31cd91649e" />
 <img width="959" height="500" alt="image" src="https://github.com/user-attachments/assets/6d39bf5a-5865-4a44-ad32-ae08d19be0ba" />
 <img width="481" height="416" alt="image" src="https://github.com/user-attachments/assets/64906478-76dc-4d57-8293-645424d64331" />
+<img width="487" height="415" alt="image" src="https://github.com/user-attachments/assets/b670e11b-54ef-4366-bad5-5819f6637b80" />
 
 
 # Notes
