@@ -30,8 +30,7 @@ LQ is a Python-based data analysis tool with a GUI for statistical tests and vis
 - Install via [python.org](https://www.python.org) or Homebrew:
 - If the GUI fails to start on older macOS, install XQuartz.
 <img width="957" height="455" alt="image" src="https://github.com/user-attachments/assets/63f6c5a0-cea1-4b84-b521-05938360b038" />
-<img width="957" height="455" alt="image" src="https://github.com/user-attachments/assets/63f6c5a0-cea1-4b84-b521-05938360b038" />
-<img width="957" height="455" alt="image" src="https://github.com/user-attachments/assets/63f6c5a0-cea1-4b84-b521-05938360b038" />
+
 <img width="949" height="496" alt="image" src="https://github.com/user-attachments/assets/f05b47fd-01a2-4cd7-8cba-da31cd91649e" />
 
 
