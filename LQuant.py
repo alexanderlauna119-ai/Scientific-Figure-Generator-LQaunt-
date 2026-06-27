@@ -19,6 +19,7 @@ from multiple_regression import MultipleRegressionWindow
 from categorical_tests import CategoricalTestsWindow 
 from power_analysis import PowerAnalysisWindow 
 from survival_tool import SurvivalAnalysisWindow  
+from chemical_calculator import launch_chemical_calculator
 
 # Local import path insurance 
 import sys 
@@ -56,92 +57,611 @@ from tkinter import ttk, filedialog, messagebox, colorchooser
 # Light Dust Blue theme helper (NEW)
 # ---------------------------------------------------------------------
 
-# --- Light Dust Blue theme (lighter + white dropdowns) ---
+# --- Modern stylish theme (merged in by gui_style_upgrade) ---
 def apply_light_dust_blue_theme(root: "tk.Tk"):
     """
-    Lighter dusty blue palette. All Combobox fields are white (editable + readonly).
+    Modern slate-indigo theme. Kept under the original name so every existing
+    call site picks it up automatically. White entries/comboboxes, padded
+    buttons with hover/press states, clean notebook tabs, polished Treeview.
     """
-    from tkinter import ttk
+    import sys
+    from tkinter import ttk, font as tkfont
 
-    # Lighter, airy palette
-    BG      = "#F7FAFD"  # main background 
-    BG_ALT  = "#DCE8F6"  # subtle alternate
-    FG      = "#0F1B2A"  # text
-    BTN_BG  = "#F0F0F0"  # button faces
-    BTN_HOV = "#BAD1EC"  # hover
-    BTN_ACT = "#AEC7E6"  # pressed
-    ACCENT  = "#3B5B92"  # focus ring / selected tab background
-    ENTRYBG = "#FFFFFF"  # <-- WHITE fields for Entry/Combobox
-    HDR_BG  = "#BFD2EA"  # Treeview header
-    HDR_FG  = "#0F1B2A"
+    P = {
+        "bg":          "#EEF2F8",
+        "surface":     "#FFFFFF",
+        "surface_alt": "#F5F7FB",
+        "border":      "#D5DCE6",
+        "fg":          "#1B2433",
+        "fg_muted":    "#5B6677",
+        "accent":      "#3B5BDB",
+        "accent_hov":  "#4C6EF5",
+        "accent_act":  "#2F49B8",
+        "accent_fg":   "#FFFFFF",
+        "danger":      "#E03131",
+        "tab_bg":      "#E3E9F2",
+        "tab_sel":     "#FFFFFF",
+    }
 
-    style = ttk.Style()
+    style = ttk.Style(root)
     try:
-        style.theme_use("clam")   # portable theme that honors color overrides
+        style.theme_use("clam")
     except Exception:
         pass
 
-    # Window background
-    root.configure(bg=BG)
+    # ---- Fonts ----
+    family = "Segoe UI"
+    if sys.platform == "darwin":
+        family = "SF Pro Text"
+    elif sys.platform.startswith("linux"):
+        for cand in ("Inter", "Ubuntu", "Cantarell", "DejaVu Sans"):
+            try:
+                tkfont.Font(family=cand); family = cand; break
+            except Exception:
+                continue
+    for fn in ("TkDefaultFont", "TkTextFont", "TkMenuFont"):
+        try: tkfont.nametofont(fn).configure(family=family, size=10)
+        except Exception: pass
+    try: tkfont.nametofont("TkHeadingFont").configure(family=family, size=10, weight="bold")
+    except Exception: pass
+    heading_font = (family, 11, "bold")
+    title_font   = (family, 16, "bold")
+
+    # ---- Root + plain tk widget defaults ----
+    root.configure(background=P["bg"])
+    try:
+        root.option_add("*Font", tkfont.nametofont("TkDefaultFont"))
+        root.option_add("*selectBackground", P["accent"])
+        root.option_add("*selectForeground", P["accent_fg"])
+        root.option_add("*Listbox.background", P["surface"])
+        root.option_add("*Listbox.foreground", P["fg"])
+        root.option_add("*Listbox.selectBackground", P["accent"])
+        root.option_add("*Listbox.selectForeground", P["accent_fg"])
+        root.option_add("*Listbox.borderWidth", 0)
+        root.option_add("*Listbox.highlightThickness", 1)
+        root.option_add("*Listbox.highlightBackground", P["border"])
+        root.option_add("*Text.background", P["surface"])
+        root.option_add("*Text.foreground", P["fg"])
+        root.option_add("*Text.borderWidth", 1)
+        root.option_add("*Text.highlightThickness", 0)
+        root.option_add("*Menu.background", P["surface"])
+        root.option_add("*Menu.foreground", P["fg"])
+        root.option_add("*Menu.activeBackground", P["accent"])
+        root.option_add("*Menu.activeForeground", P["accent_fg"])
+        root.option_add("*TCombobox*Listbox.background", P["surface"])
+        root.option_add("*TCombobox*Listbox.foreground", P["fg"])
+        root.option_add("*TCombobox*Listbox.selectBackground", P["accent"])
+        root.option_add("*TCombobox*Listbox.selectForeground", P["accent_fg"])
+        root.option_add("*TCombobox*Listbox.borderWidth", 0)
+    except Exception:
+        pass
+
+    # ---- ttk base ----
+    style.configure(".", background=P["bg"], foreground=P["fg"],
+                    fieldbackground=P["surface"], bordercolor=P["border"],
+                    lightcolor=P["border"], darkcolor=P["border"])
 
     # Frames / labels
-    style.configure("TFrame", background=BG)
-    style.configure("TLabelframe", background=BG, foreground=FG)
-    style.configure("TLabelframe.Label", background=BG, foreground=FG)
-    style.configure("TLabel", background=BG, foreground=FG)
-    style.configure("TSeparator", background=BG)
+    style.configure("TFrame", background=P["bg"])
+    style.configure("Card.TFrame", background=P["surface"], relief="flat", borderwidth=1)
+    style.configure("Toolbar.TFrame", background=P["surface_alt"])
+    style.configure("TLabel", background=P["bg"], foreground=P["fg"])
+    style.configure("Muted.TLabel", background=P["bg"], foreground=P["fg_muted"])
+    style.configure("Heading.TLabel", background=P["bg"], foreground=P["fg"], font=heading_font)
+    style.configure("Title.TLabel", background=P["bg"], foreground=P["accent"], font=title_font)
+    style.configure("TLabelframe", background=P["bg"], foreground=P["fg_muted"],
+                    bordercolor=P["border"], relief="solid", borderwidth=1)
+    style.configure("TLabelframe.Label", background=P["bg"], foreground=P["fg_muted"],
+                    font=heading_font, padding=(4, 0))
+    style.configure("TSeparator", background=P["border"])
 
     # Buttons
-    style.configure(
-        "TButton",
-        background=BTN_BG, foreground=FG,
-        borderwidth=1, focusthickness=2, focuscolor=ACCENT,
-        padding=(8, 4)
-    )
-    style.map(
-        "TButton",
-        background=[("active", BTN_HOV), ("pressed", BTN_ACT)],
-        foreground=[("disabled", "#7a7a7a")],
-        relief=[("pressed", "sunken"), ("!pressed", "raised")]
-    )
+    style.configure("TButton",
+                    background=P["surface"], foreground=P["fg"],
+                    bordercolor=P["border"], lightcolor=P["surface"],
+                    darkcolor=P["border"], focusthickness=0,
+                    padding=(12, 6), relief="flat")
+    style.map("TButton",
+              background=[("active", P["surface_alt"]), ("pressed", P["border"])],
+              foreground=[("disabled", P["fg_muted"])])
+    style.configure("Accent.TButton",
+                    background=P["accent"], foreground=P["accent_fg"],
+                    bordercolor=P["accent"], lightcolor=P["accent"],
+                    darkcolor=P["accent"], padding=(14, 7), relief="flat")
+    style.map("Accent.TButton",
+              background=[("active", P["accent_hov"]), ("pressed", P["accent_act"])])
+    style.configure("Danger.TButton",
+                    background=P["danger"], foreground="#FFFFFF",
+                    bordercolor=P["danger"], padding=(12, 6), relief="flat")
+    style.map("Danger.TButton",
+              background=[("active", "#C92A2A"), ("pressed", "#A51111")])
 
-    # Entries / Comboboxes  → white field
-    style.configure("TEntry",    fieldbackground=ENTRYBG, foreground=FG, background=BG)
-    style.configure("TCombobox", fieldbackground=ENTRYBG, foreground=FG, background=BG)
-
-    # Force readonly & normal comboboxes to keep a white field and white selection bg
+    # Entries / Combobox / Spinbox  → white field, indigo focus ring
+    for w in ("TEntry", "TCombobox", "TSpinbox"):
+        style.configure(w,
+                        fieldbackground=P["surface"], background=P["surface"],
+                        foreground=P["fg"], bordercolor=P["border"],
+                        lightcolor=P["border"], darkcolor=P["border"],
+                        padding=5, relief="flat")
+        style.map(w,
+                  fieldbackground=[("readonly", P["surface"]), ("disabled", P["surface_alt"])],
+                  foreground=[("disabled", P["fg_muted"])],
+                  bordercolor=[("focus", P["accent"])],
+                  lightcolor=[("focus", P["accent"])],
+                  darkcolor=[("focus", P["accent"])])
+    # Keep combobox selection white-on-dark-text like original
     style.map("TCombobox",
-              fieldbackground=[("readonly", ENTRYBG), ("!readonly", ENTRYBG)],
-              selectbackground=[("readonly", ENTRYBG), ("!readonly", ENTRYBG)],
-              selectforeground=[("readonly", FG),      ("!readonly", FG)],
-              background=[("readonly", ENTRYBG),       ("!readonly", ENTRYBG)])
+              selectbackground=[("readonly", P["surface"]), ("!readonly", P["surface"])],
+              selectforeground=[("readonly", P["fg"]),      ("!readonly", P["fg"])])
 
     # Checks / radios
-    style.configure("TCheckbutton", background=BG, foreground=FG)
-    style.configure("TRadiobutton", background=BG, foreground=FG)
+    for w in ("TCheckbutton", "TRadiobutton"):
+        style.configure(w, background=P["bg"], foreground=P["fg"],
+                        focuscolor=P["bg"], padding=2)
+        style.map(w, background=[("active", P["bg"])],
+                  foreground=[("disabled", P["fg_muted"])])
 
-    # Tables (Treeview): white body + soft blue header
+    # Treeview
     style.configure("Treeview",
-                    background="#FFFFFF", fieldbackground="#FFFFFF",
-                    foreground=FG, rowheight=22, borderwidth=0)
+                    background=P["surface"], fieldbackground=P["surface"],
+                    foreground=P["fg"], bordercolor=P["border"],
+                    rowheight=26, borderwidth=0)
     style.configure("Treeview.Heading",
-                    background=HDR_BG, foreground=HDR_FG, relief="flat")
-    style.map("Treeview.Heading", background=[("active", BTN_HOV)])
+                    background=P["surface_alt"], foreground=P["fg"],
+                    font=heading_font, relief="flat", padding=(8, 6))
+    style.map("Treeview",
+              background=[("selected", P["accent"])],
+              foreground=[("selected", P["accent_fg"])])
+    style.map("Treeview.Heading", background=[("active", P["border"])])
 
     # Notebook
-    style.configure("TNotebook", background=BG)
-    style.configure("TNotebook.Tab", background=BTN_BG, foreground=FG, padding=(10, 4))
+    style.configure("TNotebook", background=P["bg"], borderwidth=0,
+                    tabmargins=(8, 6, 8, 0))
+    style.configure("TNotebook.Tab",
+                    background=P["tab_bg"], foreground=P["fg_muted"],
+                    padding=(16, 8), borderwidth=0, font=(family, 10, "bold"))
     style.map("TNotebook.Tab",
-              background=[("selected", ACCENT), ("active", BTN_HOV)],
-              foreground=[("selected", "white")])
+              background=[("selected", P["tab_sel"]), ("active", P["surface_alt"])],
+              foreground=[("selected", P["accent"]), ("active", P["fg"])],
+              expand=[("selected", (1, 1, 1, 0))])
 
-    # Scrollbars
-    style.configure("Vertical.TScrollbar",   background=BG_ALT, troughcolor=BG)
-    style.configure("Horizontal.TScrollbar", background=BG_ALT, troughcolor=BG)
+    # Scrollbars / Progressbar / Scale / Paned
+    style.configure("Vertical.TScrollbar",
+                    background=P["bg"], troughcolor=P["bg"],
+                    bordercolor=P["bg"], arrowcolor=P["fg_muted"],
+                    gripcount=0, relief="flat")
+    style.configure("Horizontal.TScrollbar",
+                    background=P["bg"], troughcolor=P["bg"],
+                    bordercolor=P["bg"], arrowcolor=P["fg_muted"],
+                    gripcount=0, relief="flat")
+    style.map("Vertical.TScrollbar",
+              background=[("active", P["border"]), ("pressed", P["accent"])])
+    style.map("Horizontal.TScrollbar",
+              background=[("active", P["border"]), ("pressed", P["accent"])])
+    style.configure("Horizontal.TProgressbar",
+                    background=P["accent"], troughcolor=P["surface_alt"],
+                    bordercolor=P["border"], lightcolor=P["accent"],
+                    darkcolor=P["accent"])
+    style.configure("TScale", background=P["bg"], troughcolor=P["surface_alt"])
+    style.configure("TPanedwindow", background=P["bg"])
+    style.configure("Sash", sashthickness=6, background=P["border"])
+
+    # Windows: enable native immersive title bar where supported
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            hwnd = ctypes.windll.user32.GetParent(root.winfo_id())
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                hwnd, 20, ctypes.byref(ctypes.c_int(0)), ctypes.sizeof(ctypes.c_int)
+            )
+        except Exception:
+            pass
+
+
 
 
 # ---------------------------------------------------------------------
 # I/O helpers
+
+# ---------------------------------------------------------------------
+# Integrated Results Panel (NEW)
+# ---------------------------------------------------------------------
+import matplotlib
+try:
+    matplotlib.use("TkAgg")
+except Exception:
+    pass
+from matplotlib.backends.backend_tkagg import (
+    FigureCanvasTkAgg, NavigationToolbar2Tk,
+)
+
+# ---------------------------------------------------------------------------
+# GraphPad Prism-style defaults (clean, publication-quality look)
+# ---------------------------------------------------------------------------
+def _apply_graphpad_style():
+    import matplotlib as _mpl
+    # Pick a Prism-like sans font if available, else fall back gracefully
+    _preferred = ["Arial", "Helvetica", "Helvetica Neue", "Liberation Sans",
+                  "DejaVu Sans"]
+    _mpl.rcParams.update({
+        # Figure
+        "figure.dpi": 110,
+        "savefig.dpi": 300,
+        "figure.facecolor": "white",
+        "axes.facecolor": "white",
+        "savefig.facecolor": "white",
+        "savefig.bbox": "tight",
+        # Fonts
+        "font.family": "sans-serif",
+        "font.sans-serif": _preferred,
+        "font.size": 11,
+        "axes.titlesize": 12,
+        "axes.titleweight": "bold",
+        "axes.labelsize": 12,
+        "axes.labelweight": "bold",
+        "xtick.labelsize": 10,
+        "ytick.labelsize": 10,
+        "legend.fontsize": 10,
+        "legend.frameon": False,
+        # Axes / spines  (Prism: only left + bottom, thick)
+        "axes.spines.top": False,
+        "axes.spines.right": False,
+        "axes.spines.left": True,
+        "axes.spines.bottom": True,
+        "axes.linewidth": 1.6,
+        "axes.edgecolor": "#222222",
+        "axes.titlepad": 10,
+        "axes.labelpad": 6,
+        "axes.axisbelow": True,
+        # Ticks pointing out, thick
+        "xtick.direction": "out",
+        "ytick.direction": "out",
+        "xtick.major.size": 6,
+        "ytick.major.size": 6,
+        "xtick.minor.size": 3,
+        "ytick.minor.size": 3,
+        "xtick.major.width": 1.6,
+        "ytick.major.width": 1.6,
+        "xtick.minor.width": 1.0,
+        "ytick.minor.width": 1.0,
+        "xtick.major.pad": 5,
+        "ytick.major.pad": 5,
+        # No grid (Prism default)
+        "axes.grid": False,
+        "grid.alpha": 0.25,
+        "grid.linewidth": 0.6,
+        # Lines & markers
+        "lines.linewidth": 2.0,
+        "lines.markersize": 6,
+        "lines.markeredgewidth": 1.0,
+        "patch.linewidth": 1.2,
+        "patch.edgecolor": "#222222",
+        # Error bars
+        "errorbar.capsize": 4,
+        # Colour cycle (Prism-ish, colour-blind friendly)
+        "axes.prop_cycle": _mpl.cycler(color=[
+            "#1f77b4", "#d62728", "#2ca02c", "#9467bd",
+            "#ff7f0e", "#17becf", "#8c564b", "#e377c2",
+        ]),
+    })
+
+_apply_graphpad_style()
+
+
+def _prettify_figure(fig):
+    """Apply Prism-style polish to every axes in *fig* (idempotent, safe)."""
+    try:
+        for ax in fig.get_axes():
+            # Hide top/right spines, thicken remaining ones
+            for side in ("top", "right"):
+                if side in ax.spines:
+                    ax.spines[side].set_visible(False)
+            for side in ("left", "bottom"):
+                if side in ax.spines:
+                    ax.spines[side].set_linewidth(1.6)
+                    ax.spines[side].set_color("#222222")
+            # Ticks: outward, thick
+            ax.tick_params(axis="both", which="major",
+                           direction="out", length=6, width=1.6,
+                           colors="#222222", pad=5)
+            ax.tick_params(axis="both", which="minor",
+                           direction="out", length=3, width=1.0,
+                           colors="#222222")
+            # Bold-ish axis labels and title
+            try:
+                ax.xaxis.label.set_fontweight("bold")
+                ax.yaxis.label.set_fontweight("bold")
+                if ax.get_title():
+                    ax.title.set_fontweight("bold")
+            except Exception:
+                pass
+            # Legend: no frame
+            leg = ax.get_legend()
+            if leg is not None:
+                leg.set_frame_on(False)
+    except Exception:
+        pass
+
+
+_RESULTS_PANEL = None  # set when the integrated GUI is built
+
+
+def _fmt_cell(v):
+    try:
+        if isinstance(v, float):
+            if pd.isna(v):
+                return ""
+            return f"{v:.4g}"
+    except Exception:
+        pass
+    return "" if v is None else str(v)
+
+
+
+def _attach_pan_zoom(canvas, fig):
+    """Cursor-anchored scroll zoom + Shift/middle drag pan + double-click reset.
+    Works on every Axes in `fig`. The matplotlib toolbar still works alongside."""
+    state = {"home": None, "pan": None}
+
+    def _save_home():
+        try:
+            state["home"] = [(ax, ax.get_xlim(), ax.get_ylim()) for ax in fig.axes]
+        except Exception:
+            state["home"] = None
+    try:
+        canvas.get_tk_widget().after(60, _save_home)
+    except Exception:
+        _save_home()
+
+    def _ax_at(event):
+        if getattr(event, "inaxes", None) is not None:
+            return event.inaxes
+        for ax in fig.axes:
+            try:
+                if ax.get_visible() and ax.bbox.contains(event.x, event.y):
+                    return ax
+            except Exception:
+                continue
+        return None
+
+    def on_scroll(event):
+        ax = _ax_at(event)
+        if ax is None:
+            return
+        base = 1.2
+        factor = 1.0 / base if event.button == "up" else base
+        x0, x1 = ax.get_xlim()
+        y0, y1 = ax.get_ylim()
+        try:
+            xdata, ydata = ax.transData.inverted().transform((event.x, event.y))
+        except Exception:
+            xdata, ydata = (x0 + x1) / 2.0, (y0 + y1) / 2.0
+        ax.set_xlim(xdata - (xdata - x0) * factor, xdata + (x1 - xdata) * factor)
+        ax.set_ylim(ydata - (ydata - y0) * factor, ydata + (y1 - ydata) * factor)
+        canvas.draw_idle()
+
+    def on_press(event):
+        is_pan = (event.button == 2) or (
+            event.button == 1 and isinstance(event.key, str) and "shift" in event.key
+        )
+        if not is_pan:
+            return
+        ax = _ax_at(event)
+        if ax is None:
+            return
+        state["pan"] = (ax, event.x, event.y, ax.get_xlim(), ax.get_ylim())
+
+    def on_motion(event):
+        if state["pan"] is None or event.x is None:
+            return
+        ax, x0, y0, xlim, ylim = state["pan"]
+        try:
+            inv = ax.transData.inverted()
+            p0 = inv.transform((x0, y0))
+            p1 = inv.transform((event.x, event.y))
+        except Exception:
+            return
+        dx, dy = p0[0] - p1[0], p0[1] - p1[1]
+        ax.set_xlim(xlim[0] + dx, xlim[1] + dx)
+        ax.set_ylim(ylim[0] + dy, ylim[1] + dy)
+        canvas.draw_idle()
+
+    def on_release(event):
+        state["pan"] = None
+        if getattr(event, "dblclick", False) and state["home"]:
+            for ax, xl, yl in state["home"]:
+                ax.set_xlim(xl)
+                ax.set_ylim(yl)
+            canvas.draw_idle()
+
+    canvas.mpl_connect("scroll_event", on_scroll)
+    canvas.mpl_connect("button_press_event", on_press)
+    canvas.mpl_connect("motion_notify_event", on_motion)
+    canvas.mpl_connect("button_release_event", on_release)
+
+
+class ResultsPanel(ttk.Frame):
+    """Right-hand notebook that embeds tables and matplotlib figures."""
+
+    def __init__(self, master):
+        super().__init__(master, padding=(6, 6))
+        header = ttk.Frame(self)
+        header.pack(fill="x")
+        ttk.Label(header, text="Results",
+                  font=("TkDefaultFont", 11, "bold")).pack(side="left")
+        ttk.Button(header, text="Clear all", command=self.clear
+                   ).pack(side="right")
+        ttk.Button(header, text="Close current", command=self.close_current
+                   ).pack(side="right", padx=(0, 6))
+        self.nb = ttk.Notebook(self)
+        self.nb.pack(fill="both", expand=True, pady=(6, 0))
+        self._empty = None
+        self._show_welcome()
+        self._fig_counter = 0
+        # Hook fired whenever a new result tab is added — used to raise
+        # the outer Spreadsheet/Results notebook to the Results pane.
+        self.on_activity = None
+
+
+    def _show_welcome(self):
+        self._empty = ttk.Label(
+            self.nb,
+            text="Run an analysis — tables and figures appear here as tabs.",
+            padding=24, anchor="center", justify="center",
+        )
+        self.nb.add(self._empty, text="Welcome")
+
+    def _drop_welcome(self):
+        if self._empty is not None:
+            try:
+                self.nb.forget(self._empty)
+            except Exception:
+                pass
+            self._empty = None
+
+    def clear(self):
+        for t in list(self.nb.tabs()):
+            self.nb.forget(t)
+        self._show_welcome()
+
+    def close_current(self):
+        cur = self.nb.select()
+        if cur:
+            self.nb.forget(cur)
+            if not self.nb.tabs():
+                self._show_welcome()
+
+    def _add_tab(self, widget, title):
+        self._drop_welcome()
+        short = title if len(title) <= 38 else title[:35] + "…"
+        self.nb.add(widget, text=short)
+        self.nb.select(widget)
+        try:
+            if callable(self.on_activity):
+                self.on_activity()
+        except Exception:
+            pass
+
+
+    def add_dataframe(self, df, title):
+        frame = ttk.Frame(self.nb)
+        cols = [str(c) for c in df.columns]
+        tv = ttk.Treeview(frame, columns=cols, show="headings", height=20)
+        for c in cols:
+            tv.heading(c, text=c)
+            try:
+                sample = df[c].astype(str).head(20).tolist()
+            except Exception:
+                sample = [""]
+            w = max(80, min(280, 9 * max([len(c)] + [len(s) for s in sample])))
+            tv.column(c, width=w, anchor="w", stretch=True)
+        for _, row in df.iterrows():
+            tv.insert("", "end", values=[_fmt_cell(v) for v in row.tolist()])
+        vsb = ttk.Scrollbar(frame, orient="vertical", command=tv.yview)
+        hsb = ttk.Scrollbar(frame, orient="horizontal", command=tv.xview)
+        tv.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        tv.grid(row=0, column=0, sticky="nsew")
+        vsb.grid(row=0, column=1, sticky="ns")
+        hsb.grid(row=1, column=0, sticky="we")
+        frame.rowconfigure(0, weight=1)
+        frame.columnconfigure(0, weight=1)
+        self._add_tab(frame, title)
+
+    def add_rows(self, rows, title):
+        if not rows:
+            self.add_text("(no rows)", title); return
+        self.add_dataframe(pd.DataFrame(rows), title)
+
+    def add_text(self, text, title):
+        frame = ttk.Frame(self.nb)
+        txt = tk.Text(frame, wrap="word", height=20)
+        txt.insert("1.0", text)
+        txt.configure(state="disabled")
+        vsb = ttk.Scrollbar(frame, orient="vertical", command=txt.yview)
+        txt.configure(yscrollcommand=vsb.set)
+        txt.grid(row=0, column=0, sticky="nsew")
+        vsb.grid(row=0, column=1, sticky="ns")
+        frame.rowconfigure(0, weight=1)
+        frame.columnconfigure(0, weight=1)
+        self._add_tab(frame, title)
+
+    def add_figure(self, fig, title=None):
+        self._fig_counter += 1
+        if not title:
+            try:
+                title = (fig._suptitle.get_text() if fig._suptitle else "") \
+                        or (fig.axes[0].get_title() if fig.axes else "") \
+                        or f"Figure {self._fig_counter}"
+            except Exception:
+                title = f"Figure {self._fig_counter}"
+        frame = ttk.Frame(self.nb)
+        canvas = FigureCanvasTkAgg(fig, master=frame)
+        # Polish to Prism/GraphPad-style look before drawing
+        try:
+            _prettify_figure(fig)
+        except Exception:
+            pass
+        # Use constrained_layout so labels/titles fit the Tk canvas at any size,
+        # and re-apply on container resize. Zoom/pan only change axis limits,
+        # so axes positions stay stable while the graph keeps its scale.
+        try:
+            fig.set_layout_engine("constrained")
+        except Exception:
+            try:
+                fig.tight_layout()
+            except Exception:
+                pass
+        canvas.draw()
+        def _on_resize(event, _f=fig, _c=canvas):
+            try:
+                _f.canvas.draw_idle()
+            except Exception:
+                pass
+        canvas.get_tk_widget().bind("<Configure>", _on_resize, add="+")
+        toolbar = NavigationToolbar2Tk(canvas, frame, pack_toolbar=False)
+        toolbar.update()
+        toolbar.pack(side="bottom", fill="x")
+        canvas.get_tk_widget().pack(side="top", fill="both", expand=True)
+        # Cursor-anchored scroll zoom + Shift/middle drag pan + dbl-click reset
+        try:
+            _attach_pan_zoom(canvas, fig)
+        except Exception:
+            pass
+        frame._fig = fig
+        frame._canvas = canvas
+        frame._toolbar = toolbar
+        self._add_tab(frame, title)
+
+
+def _embed_pending_figures():
+    """Capture all currently-open matplotlib figures into the results panel."""
+    if _RESULTS_PANEL is None:
+        return False
+    nums = plt.get_fignums()
+    if not nums:
+        return True
+    for n in nums:
+        fig = plt.figure(n)
+        _RESULTS_PANEL.add_figure(fig)
+    for n in list(plt.get_fignums()):
+        try:
+            plt._pylab_helpers.Gcf.destroy(n)
+        except Exception:
+            pass
+    return True
+
+
+# Monkey-patch plt.show so any plt.show() call lands in the results panel
+# when the integrated GUI is active. Falls back to the normal window when not.
+_ORIG_PLT_SHOW = plt.show
+def _plt_show_integrated(*args, **kwargs):
+    if _RESULTS_PANEL is None:
+        return _ORIG_PLT_SHOW(*args, **kwargs)
+    _embed_pending_figures()
+plt.show = _plt_show_integrated
+
+# ---------------------------------------------------------------------
+
 def _read_any_table(path: str, sheet: Optional[str] = None) -> pd.DataFrame: 
     if not isinstance(path, str) or not path.strip(): 
         raise ValueError("No file path provided.") 
@@ -270,7 +790,35 @@ def load_data(file_path: Optional[str], sheet: Optional[str] = None) -> Tuple[Di
         raise ValueError("No valid groups with data found in the table.") 
     return data_dict, df 
 # ---------------------------------------------------------------------
-# Color helpers 
+# Color helpers
+# NEW: Edge color + hatch (pattern) support
+EDGE_COLORS = {}  # e.g., {"Group1": "black", "Group2": None}
+HATCHES = {}      # e.g., {"Group1": "//", "Group2": "xx", "Group3": ""}
+
+# Rotating infill patterns auto-assigned per category (in addition to color).
+HATCH_PALETTE = ["//", "xx", "..", "++", "\\\\", "oo", "**", "||", "--", "OO"]
+
+def clean_hatch(h):
+    # Return the hatch string as-is. Stripping backslashes silently turned
+    # "\\" patterns into "no infill", so we only normalize non-strings.
+    if not isinstance(h, str):
+        return ""
+    return h
+
+def ensure_hatches_for_keys(keys, hatches=None):
+    """Auto-assign a unique infill pattern to each category, preserving any
+    user-specified entries. Also updates the global HATCHES dict so bar
+    plots pick up patterns automatically."""
+    out = dict(hatches or {})
+    for i, k in enumerate(keys):
+        # Only auto-assign when the key is missing entirely. An explicit ""
+        # means the user chose "(none)" / solid and must be preserved.
+        if k not in out:
+            out[k] = HATCH_PALETTE[i % len(HATCH_PALETTE)]
+    HATCHES.update(out)
+    return out
+
+ 
 def tuple_to_hex(rgb) -> str: 
     r, g, b = [int(255*x) for x in rgb[:3]] 
     return f"#{r:02X}{g:02X}{b:02X}" 
@@ -524,34 +1072,26 @@ def build_pairwise_long_table(pairwise_results) -> pd.DataFrame:
 # ---------------------------------------------------------------------
 # NEW: scrollable popup for the significance (pairwise) long table 
 def show_pairwise_long_table_popup(df_long: pd.DataFrame, title: str = "Pairwise comparisons — p-values (long table)"): 
-    win = tk.Toplevel() 
-    win.title(title) 
-    win.geometry("1100x600") 
-    frame = ttk.Frame(win, padding=(8, 8)) 
-    frame.pack(fill="both", expand=True) 
-    columns = list(df_long.columns) 
-    tree = ttk.Treeview(frame, columns=columns, show="headings", height=16) 
-    for col in columns: 
-        tree.heading(col, text=col) 
-    width = 140 
-    for col in columns: 
-        w = 180 if col in {"ref","group","name"} else 140 
-        tree.column(col, width=w, anchor="center") 
-    vsb = ttk.Scrollbar(frame, orient="vertical", command=tree.yview) 
-    hsb = ttk.Scrollbar(frame, orient="horizontal", command=tree.xview) 
-    tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set) 
-    tree.grid(row=0, column=0, sticky="nsew") 
-    vsb.grid(row=0, column=1, sticky="ns") 
-    hsb.grid(row=1, column=0, sticky="ew") 
-    frame.grid_rowconfigure(0, weight=1) 
-    frame.grid_columnconfigure(0, weight=1) 
-    for _, row in df_long.iterrows(): 
-        tree.insert("", "end", values=[row[c] for c in columns]) 
-    toolbar = ttk.Frame(frame) 
-    toolbar.grid(row=2, column=0, sticky="e", pady=(8, 0)) 
-    ttk.Button(toolbar, text="Close", command=win.destroy).pack(side="right", padx=(6,0)) 
-# ---------------------------------------------------------------------
-# UPDATED: smart viewer for the significance table (figure for small; popup for long) 
+    if _RESULTS_PANEL is not None:
+        _RESULTS_PANEL.add_dataframe(df_long, title)
+        return
+    win = tk.Toplevel()
+    win.title(title)
+    win.geometry("1100x600")
+    frame = ttk.Frame(win, padding=(8, 8))
+    frame.pack(fill="both", expand=True)
+    cols = [str(c) for c in df_long.columns]
+    tv = ttk.Treeview(frame, columns=cols, show="headings", height=20)
+    for c in cols:
+        tv.heading(c, text=c)
+        tv.column(c, width=140, anchor="w", stretch=True)
+    for _, row in df_long.iterrows():
+        tv.insert("", "end", values=[_fmt_cell(v) for v in row.tolist()])
+    vsb = ttk.Scrollbar(frame, orient="vertical", command=tv.yview)
+    tv.configure(yscrollcommand=vsb.set)
+    tv.pack(side="left", fill="both", expand=True)
+    vsb.pack(side="right", fill="y")
+
 def show_pairwise_long_table_figure(pairwise_results): 
     if not pairwise_results: 
         print("\n(No pairwise comparisons to display)") 
@@ -580,55 +1120,51 @@ def show_pairwise_long_table_figure(pairwise_results):
                     pass 
     plt.tight_layout() 
 def show_normality_table(rows: List[Dict[str, str]], title: str = "Normality tests"): 
-    win = tk.Toplevel() 
-    win.title(title) 
-    win.geometry("1100x600") 
-    frame = ttk.Frame(win, padding=(8,8)) 
-    frame.pack(fill="both", expand=True) 
-    columns = ["Group", "Test", "Stat", "p-value", "Decision", "Note"] 
-    tree = ttk.Treeview(frame, columns=columns, show="headings", height=16) 
-    for col in columns: 
-        tree.heading(col, text=col) 
-    w = {"Group":150, "Test":220, "Decision":140} 
-    for col in columns: 
-        width = w.get(col, (140 if col in {"Stat","p-value"} else 520)) 
-        tree.column(col, width=width, anchor="center" if col != "Note" else "w") 
-    vsb = ttk.Scrollbar(frame, orient="vertical", command=tree.yview) 
-    hsb = ttk.Scrollbar(frame, orient="horizontal", command=tree.xview) 
-    tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set) 
-    tree.grid(row=0, column=0, sticky="nsew") 
-    vsb.grid(row=0, column=1, sticky="ns") 
-    hsb.grid(row=1, column=0, sticky="ew") 
-    frame.grid_rowconfigure(0, weight=1) 
-    frame.grid_columnconfigure(0, weight=1) 
-    for r in rows: 
-        tree.insert("", "end", values=[r[c] for c in columns]) 
-    ttk.Button(frame, text="Close", command=win.destroy).grid(row=2, column=0, sticky="e", pady=(8,0)) 
+    if _RESULTS_PANEL is not None:
+        _RESULTS_PANEL.add_rows(rows, title)
+        return
+    win = tk.Toplevel()
+    win.title(title)
+    win.geometry("1100x600")
+    frame = ttk.Frame(win, padding=(8, 8))
+    frame.pack(fill="both", expand=True)
+    df_n = pd.DataFrame(rows) if rows else pd.DataFrame()
+    cols = [str(c) for c in df_n.columns] if not df_n.empty else ["info"]
+    tv = ttk.Treeview(frame, columns=cols, show="headings", height=20)
+    for c in cols:
+        tv.heading(c, text=c)
+        tv.column(c, width=140, anchor="w", stretch=True)
+    if df_n.empty:
+        tv.insert("", "end", values=("(no rows)",))
+    else:
+        for _, row in df_n.iterrows():
+            tv.insert("", "end", values=[_fmt_cell(v) for v in row.tolist()])
+    vsb = ttk.Scrollbar(frame, orient="vertical", command=tv.yview)
+    tv.configure(yscrollcommand=vsb.set)
+    tv.pack(side="left", fill="both", expand=True)
+    vsb.pack(side="right", fill="y")
+
 def show_descriptives_table(df: pd.DataFrame, title: str = "Descriptives"): 
-    win = tk.Toplevel() 
-    win.title(title) 
-    win.geometry("1100x600") 
-    frame = ttk.Frame(win, padding=(8,8)) 
-    frame.pack(fill="both", expand=True) 
-    columns = list(df.columns) 
-    tree = ttk.Treeview(frame, columns=columns, show="headings", height=16) 
-    for col in columns: 
-        tree.heading(col, text=col) 
-    for col in columns: 
-        tree.column(col, width=140, anchor="center") 
-    vsb = ttk.Scrollbar(frame, orient="vertical", command=tree.yview) 
-    hsb = ttk.Scrollbar(frame, orient="horizontal", command=tree.xview) 
-    tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set) 
-    tree.grid(row=0, column=0, sticky="nsew") 
-    vsb.grid(row=0, column=1, sticky="ns") 
-    hsb.grid(row=1, column=0, sticky="ew") 
-    frame.grid_rowconfigure(0, weight=1) 
-    frame.grid_columnconfigure(0, weight=1) 
-    for _, row in df.iterrows(): 
-        tree.insert("", "end", values=[row[c] for c in columns]) 
-    ttk.Button(frame, text="Close", command=win.destroy).grid(row=2, column=0, sticky="e", pady=(8,0)) 
-# ---------------------------------------------------------------------
-# Normality runners, posthocs, two-way ANOVA, etc. 
+    if _RESULTS_PANEL is not None:
+        _RESULTS_PANEL.add_dataframe(df, title)
+        return
+    win = tk.Toplevel()
+    win.title(title)
+    win.geometry("1100x600")
+    frame = ttk.Frame(win, padding=(8, 8))
+    frame.pack(fill="both", expand=True)
+    cols = [str(c) for c in df.columns]
+    tv = ttk.Treeview(frame, columns=cols, show="headings", height=20)
+    for c in cols:
+        tv.heading(c, text=c)
+        tv.column(c, width=140, anchor="w", stretch=True)
+    for _, row in df.iterrows():
+        tv.insert("", "end", values=[_fmt_cell(v) for v in row.tolist()])
+    vsb = ttk.Scrollbar(frame, orient="vertical", command=tv.yview)
+    tv.configure(yscrollcommand=vsb.set)
+    tv.pack(side="left", fill="both", expand=True)
+    vsb.pack(side="right", fill="y")
+
 def run_normality_all(data: Dict[str, List[float]], alpha: float) -> Dict[str, Dict[str, dict]]: 
     results: Dict[str, Dict[str, dict]] = {} 
     for g, vals in data.items(): 
@@ -1007,8 +1543,13 @@ def plot_mean_ci(ax, categories, means, ci_half, colors, bar=False, line=False, 
     x = np.arange(len(categories)) 
     if bar: 
         for i, cat in enumerate(categories): 
-            ax.bar(x[i], means[i], width=0.70, color=colors.get(cat, "#999999"), 
-                   edgecolor="#444444", linewidth=1.4, alpha=0.80, zorder=1) 
+            ax.bar(x[i], means[i], width=0.70, color=colors.get(cat, "#999999"),
+                   # edgecolor doubles as the hatch color in matplotlib;
+                   # keep linewidth=0 so the pattern is colored without
+                   # drawing a thick outline around the bar.
+                   edgecolor=EDGE_COLORS.get(cat, "#444444"),
+                   linewidth=0,
+                   hatch=clean_hatch(HATCHES.get(cat, "")), alpha=0.80, zorder=1) 
         ax.errorbar(x, means, yerr=ci_half, fmt="None", ecolor="black", 
                     elinewidth=1.5, capsize=6, capthick=1.5, zorder=2, label=ci_label) 
     elif line: 
@@ -1328,6 +1869,14 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
         y_min_user = None; y_max_user = None 
     y_axis_label = cfg.get("y_label", "Value") or "Value" 
     sig_marker_mode = (cfg.get("sig_marker_mode") or "p-value").strip() 
+    def _fs(v, d):
+        try:
+            f = float(str(v).strip());  return f if f > 0 else d
+        except Exception:
+            return d
+    _yls_fs = _fs(cfg.get("y_label_fontsize"), 15)
+    _ytk_fs = _fs(cfg.get("y_tick_fontsize"), 10)
+    _sig_fs = _fs(cfg.get("sig_fontsize"), 10)
     base_gap_factor = _get_float(cfg["base_gap_factor"], 0.08) 
     stack_step_factor= _get_float(cfg["stack_step_factor"], 0.09) 
     line_height_factor= _get_float(cfg["line_height_factor"],0.025) 
@@ -1339,6 +1888,26 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
     except Exception: 
         colors_cat = {} 
     colors_cat = ensure_colors_for_keys(categories_all, colors_cat) 
+    # Pull per-group infill patterns + pattern colors from cfg, then auto-fill
+    # any missing patterns so every category gets a unique one.
+    try:
+        user_hatches = json.loads(cfg.get("hatches_json", "{}")) or {}
+        if not isinstance(user_hatches, dict): user_hatches = {}
+    except Exception:
+        user_hatches = {}
+    try:
+        user_hatch_colors = json.loads(cfg.get("hatch_colors_json", "{}")) or {}
+        if not isinstance(user_hatch_colors, dict): user_hatch_colors = {}
+    except Exception:
+        user_hatch_colors = {}
+    HATCHES.clear()
+    HATCHES.update({k: v for k, v in user_hatches.items() if isinstance(v, str)})
+    # Do not auto-assign patterns. Bars are plain unless the user picks one.
+    # Pattern color = matplotlib hatch color, which follows the patch edgecolor.
+    EDGE_COLORS.clear()
+    for k, v in user_hatch_colors.items():
+        if isinstance(v, str) and v.startswith("#") and len(v) in (4, 7):
+            EDGE_COLORS[k] = v
     xlsx_path = (cfg.get("export_xlsx") or "").strip() 
     excel_writer = None 
     _excel_sheets_written = 0 
@@ -1752,8 +2321,12 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
         # Bar + scatter 
         bar_width = 0.70 
         for i, cat in enumerate(categories_plot): 
-            ax.bar(x[i], means[i], width=bar_width, color=colors_cat.get(cat,"#999999"), 
-                   edgecolor="#444444", linewidth=1.4, alpha=0.80, zorder=1) 
+            ax.bar(x[i], means[i], width=bar_width, color=colors_cat.get(cat,"#999999"),
+                   # edgecolor doubles as the hatch color; linewidth=0 keeps
+                   # the bar outline invisible while the pattern is colored.
+                   edgecolor=EDGE_COLORS.get(cat, "#444444"),
+                   linewidth=0,
+                   hatch=clean_hatch(HATCHES.get(cat, "")), alpha=0.80, zorder=1) 
         ax.errorbar(x, means, yerr=sems, fmt="None", ecolor="gray", elinewidth=1.5, capsize=6, capthick=1.5, zorder=2) 
         rng = np.random.default_rng(42) 
         for i, cat in enumerate(categories_plot): 
@@ -1767,7 +2340,7 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
     if ptype == "Pie chart": 
         ax.set_ylabel("") 
     else: 
-        ax.set_ylabel(y_axis_label, fontsize=15) 
+        ax.set_ylabel(y_axis_label, fontsize=_yls_fs) 
     if not ptype.startswith("Regression") and ptype != "Pie chart": 
         ax.set_ylim(y_min, y_max) 
     tick_val = cfg.get("tick", "auto") 
@@ -1795,6 +2368,7 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
     if ptype != "Pie chart": 
         ticks, decimals = _rebuild_y_ticks(y_min, y_max, tick_val, step) 
         ax.set_yticks(ticks) 
+        ax.tick_params(axis="y", labelsize=_ytk_fs) 
         if decimals is None: 
             formatter = ScalarFormatter(useMathText=True) 
             formatter.set_scientific(False) 
@@ -1813,7 +2387,7 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
             ) 
             ax.text( 
                 (b["x1"] + b["x2"]) / 2, b["y"] + line_h, b["text"], 
-                ha="center", va="bottom", fontsize=10, color="black", clip_on=False, zorder=4 
+                ha="center", va="bottom", fontsize=_sig_fs, color="black", clip_on=False, zorder=4 
             ) 
     if (not only_plot and cfg["analysis"] == "t_one_sample" and single_annos and ptype != "Pie chart"): 
         if default_ref in categories_plot: 
@@ -1821,7 +2395,7 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
             for r in single_annos: 
                 ax.text( 
                     x[xi], y_top + line_h, format_sig_marker(r["p_adj"], sig_marker_mode), 
-                    ha="center", va="bottom", fontsize=9, color="black", clip_on=False, zorder=4 
+                    ha="center", va="bottom", fontsize=_sig_fs, color="black", clip_on=False, zorder=4 
                 ) 
     if (cfg.get("plot_type") or "").strip() in { 
         "Mean ± CI","Line ± CI","Area (quartiles stacked)", 
@@ -1859,6 +2433,650 @@ def execute_analysis(cfg: Dict[str, str], data_dict: Dict[str, List[float]], df_
     _deliver_hook(pairwise_results) 
 # ---------------------------------------------------------------------
 # GUI (SCROLLABLE START MENU ADDED) 
+
+# =====================================================================
+#  Integrated spreadsheet editor (merged from spreadsheet_editor.py)
+#  - SpreadsheetFrame: embeds directly in the main GUI (no popup)
+#  - Browse Excel/CSV button loads the file straight into the grid
+#  - "Apply" pushes data into data_dict / df_data / categories via
+#    the on_apply callback, exactly like loading a file from disk.
+# =====================================================================
+def _sse_to_float(s: str):
+    s = (s or "").strip().replace(",", ".")
+    if s == "" or s.lower() in {"nan", "na", "n/a", "-"}:
+        return None
+    try:
+        return float(s)
+    except Exception:
+        return None
+
+
+def _sse_fmt(v):
+    try:
+        f = float(v)
+        if f.is_integer():
+            return str(int(f))
+        return f"{f:g}"
+    except Exception:
+        return str(v)
+
+
+class SpreadsheetFrame(ttk.Frame):
+    """GraphPad-style editable grid, embedded inside any parent frame."""
+    DEFAULT_ROWS = 25
+    DEFAULT_COLS = 4
+    CELL_W = 12
+    HDR_W = 14
+
+    def __init__(self, master, on_apply=None, **kw):
+        super().__init__(master, **kw)
+        self.on_apply = on_apply
+        self._headers = []
+        self._cells = []
+        self._header_entries = []
+        self._cell_entries = []
+        self._col_labels = []
+        self._row_labels = []
+        self._sel_cols = set()
+        self._sel_rows = set()
+        self._sel_anchor_col = None
+        self._sel_anchor_row = None
+        self._build_toolbar()
+        self._build_grid_area()
+        self._build_footer()
+        self._init_blank(self.DEFAULT_ROWS, self.DEFAULT_COLS)
+        self.bind_all("<Delete>", self._on_delete_key)
+        self.bind_all("<Control-c>", self._on_copy_key)
+        self.bind_all("<Command-c>", self._on_copy_key)
+
+    def _build_toolbar(self):
+        bar = ttk.Frame(self, padding=(6, 4))
+        bar.pack(fill="x")
+        ttk.Button(bar, text="Browse Excel/CSV…", command=self.browse_file).pack(side="left", padx=2)
+        ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=6)
+
+        ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=6)
+        ttk.Button(bar, text="Clear", command=self.clear_all).pack(side="left", padx=2)
+        ttk.Button(bar, text="Export…", command=self.export_file).pack(side="left", padx=2)
+        ttk.Button(bar, text="Apply ✓", command=self.apply).pack(side="right", padx=2)
+        self._status_var = tk.StringVar(value="Click a column letter or row # to select. Shift/Ctrl-click to extend.")
+        ttk.Label(bar, textvariable=self._status_var, foreground="#566275").pack(side="right", padx=10)
+
+    def _build_grid_area(self):
+        wrap = ttk.Frame(self, padding=(6, 0))
+        wrap.pack(fill="both", expand=True)
+        self._canvas = tk.Canvas(wrap, highlightthickness=0, background="#FFFFFF", height=260)
+        vbar = ttk.Scrollbar(wrap, orient="vertical", command=self._canvas.yview)
+        hbar = ttk.Scrollbar(wrap, orient="horizontal", command=self._canvas.xview)
+        self._canvas.configure(yscrollcommand=vbar.set, xscrollcommand=hbar.set)
+        self._canvas.grid(row=0, column=0, sticky="nsew")
+        vbar.grid(row=0, column=1, sticky="ns")
+        hbar.grid(row=1, column=0, sticky="we")
+        wrap.grid_rowconfigure(0, weight=1)
+        wrap.grid_columnconfigure(0, weight=1)
+        self._inner = ttk.Frame(self._canvas)
+        self._canvas.create_window((0, 0), window=self._inner, anchor="nw")
+        self._inner.bind("<Configure>",
+                         lambda e: self._canvas.configure(scrollregion=self._canvas.bbox("all")))
+        self._canvas.bind("<Enter>", lambda e: self._canvas.bind_all("<MouseWheel>", self._on_wheel))
+        self._canvas.bind("<Leave>", lambda e: self._canvas.unbind_all("<MouseWheel>"))
+
+    def _on_wheel(self, event):
+        self._canvas.yview_scroll(int(-event.delta / 120), "units")
+
+    def _build_footer(self):
+        foot = ttk.Frame(self, padding=(6, 2))
+        foot.pack(fill="x")
+        ttk.Label(foot, text="Click column letter / row # to select. Shift-click = range, Ctrl/Cmd-click = toggle. "
+                            "Delete = clear, Ctrl/Cmd+C = copy, +V = paste. Right-click = insert/delete.",
+                  foreground="#566275").pack(side="left")
+
+    def _init_blank(self, n_rows, n_cols):
+        self._headers = [tk.StringVar(value=f"Group {i+1}") for i in range(n_cols)]
+        self._cells = [[tk.StringVar(value="") for _ in range(n_cols)] for _ in range(n_rows)]
+        self._sel_cols.clear(); self._sel_rows.clear()
+        self._render_grid()
+
+    @staticmethod
+    def _col_letter(i):
+        s = ""
+        n = i
+        while True:
+            s = chr(ord("A") + (n % 26)) + s
+            n = n // 26 - 1
+            if n < 0:
+                break
+        return s
+
+    def _render_grid(self):
+        for w in self._inner.winfo_children():
+            w.destroy()
+        self._header_entries = []
+        self._cell_entries = []
+        self._col_labels = []
+        self._row_labels = []
+        corner = tk.Label(self._inner, text="◢", width=4, anchor="center",
+                          bg="#DDE3EE", fg="#3A4252", borderwidth=1, relief="solid")
+        corner.grid(row=0, column=0, sticky="nsew")
+        corner.bind("<Button-1>", lambda e: self._select_all())
+        for c in range(len(self._headers)):
+            lbl = tk.Label(self._inner, text=self._col_letter(c), width=self.HDR_W,
+                           anchor="center", bg="#DDE3EE", fg="#3A4252",
+                           borderwidth=1, relief="solid", font=("TkDefaultFont", 9, "bold"))
+            lbl.grid(row=0, column=c + 1, sticky="nsew")
+            lbl.bind("<Button-1>", lambda e, ci=c: self._click_col(e, ci))
+            lbl.bind("<Button-3>", lambda e, ci=c: self._col_menu(e, ci))
+            lbl.bind("<Button-2>", lambda e, ci=c: self._col_menu(e, ci))
+            self._col_labels.append(lbl)
+        ttk.Label(self._inner, text="#", width=4, anchor="center",
+                  background="#EEF2F8", foreground="#566275",
+                  borderwidth=1, relief="solid").grid(row=1, column=0, sticky="nsew")
+        for c, var in enumerate(self._headers):
+            e = ttk.Entry(self._inner, textvariable=var, width=self.HDR_W, justify="center",
+                          font=("TkDefaultFont", 10, "bold"))
+            e.grid(row=1, column=c + 1, sticky="nsew")
+            self._header_entries.append(e)
+        for r, row_vars in enumerate(self._cells):
+            rl = tk.Label(self._inner, text=str(r + 1), width=4, anchor="center",
+                          bg="#F5F7FB", fg="#566275", borderwidth=1, relief="solid")
+            rl.grid(row=r + 2, column=0, sticky="nsew")
+            rl.bind("<Button-1>", lambda e, ri=r: self._click_row(e, ri))
+            rl.bind("<Button-3>", lambda e, ri=r: self._row_menu(e, ri))
+            rl.bind("<Button-2>", lambda e, ri=r: self._row_menu(e, ri))
+            self._row_labels.append(rl)
+            row_entries = []
+            for c, v in enumerate(row_vars):
+                e = tk.Entry(self._inner, textvariable=v, width=self.CELL_W, justify="right",
+                             relief="solid", borderwidth=1, highlightthickness=0)
+                e.grid(row=r + 2, column=c + 1, sticky="nsew")
+                e.bind("<Button-1>", lambda ev, rr=r, cc=c: self._click_cell(rr, cc), add="+")
+                e.bind("<Control-v>", self._on_paste_event)
+                e.bind("<Command-v>", self._on_paste_event)
+                e.bind("<Up>", lambda ev, rr=r, cc=c: self._move(rr - 1, cc))
+                e.bind("<Down>", lambda ev, rr=r, cc=c: self._move(rr + 1, cc))
+                e.bind("<Return>", lambda ev, rr=r, cc=c: self._move(rr + 1, cc))
+                e.bind("<Left>", self._maybe_left)
+                e.bind("<Right>", self._maybe_right)
+                e.bind("<Button-3>", lambda ev, rr=r, cc=c: self._cell_menu(ev, rr, cc))
+                e.bind("<Button-2>", lambda ev, rr=r, cc=c: self._cell_menu(ev, rr, cc))
+                row_entries.append(e)
+            self._cell_entries.append(row_entries)
+        self._status_var.set(f"{len(self._cells)} rows × {len(self._headers)} columns")
+        self._inner.update_idletasks()
+        self._canvas.configure(scrollregion=self._canvas.bbox("all"))
+        self._apply_selection_styles()
+
+    # --- selection ---
+    SEL_HDR_BG = "#4A90E2"
+    SEL_HDR_FG = "#FFFFFF"
+    SEL_CELL_BG = "#DCE7F5"
+    HDR_BG = "#DDE3EE"
+    HDR_FG = "#3A4252"
+    ROW_BG = "#F5F7FB"
+    ROW_FG = "#566275"
+
+    def _apply_selection_styles(self):
+        for c, lbl in enumerate(self._col_labels):
+            if c in self._sel_cols:
+                lbl.configure(bg=self.SEL_HDR_BG, fg=self.SEL_HDR_FG)
+            else:
+                lbl.configure(bg=self.HDR_BG, fg=self.HDR_FG)
+        for r, lbl in enumerate(self._row_labels):
+            if r in self._sel_rows:
+                lbl.configure(bg=self.SEL_HDR_BG, fg=self.SEL_HDR_FG)
+            else:
+                lbl.configure(bg=self.ROW_BG, fg=self.ROW_FG)
+        for r, row in enumerate(self._cell_entries):
+            for c, e in enumerate(row):
+                selected = (c in self._sel_cols) or (r in self._sel_rows)
+                try:
+                    e.configure(bg=(self.SEL_CELL_BG if selected else "#FFFFFF"))
+                except tk.TclError:
+                    pass
+        n = self._selection_count()
+        if n:
+            self._status_var.set(
+                f"Selected: {len(self._sel_cols)} col(s), {len(self._sel_rows)} row(s) — {n} cell(s)"
+            )
+
+    def _selection_count(self):
+        nrows, ncols = len(self._cells), len(self._headers)
+        if not nrows or not ncols:
+            return 0
+        cells = set()
+        for c in self._sel_cols:
+            for r in range(nrows):
+                cells.add((r, c))
+        for r in self._sel_rows:
+            for c in range(ncols):
+                cells.add((r, c))
+        return len(cells)
+
+    def _clear_selection(self):
+        self._sel_cols.clear()
+        self._sel_rows.clear()
+        self._sel_anchor_col = None
+        self._sel_anchor_row = None
+
+    def _select_all(self):
+        self._sel_cols = set(range(len(self._headers)))
+        self._sel_rows = set(range(len(self._cells)))
+        self._apply_selection_styles()
+
+    def _click_col(self, event, ci):
+        shift = bool(event.state & 0x0001)
+        ctrl = bool(event.state & 0x0004) or bool(event.state & 0x8)
+        self._sel_rows.clear()
+        if shift and self._sel_anchor_col is not None:
+            lo, hi = sorted((self._sel_anchor_col, ci))
+            self._sel_cols = set(range(lo, hi + 1))
+        elif ctrl:
+            if ci in self._sel_cols:
+                self._sel_cols.discard(ci)
+            else:
+                self._sel_cols.add(ci)
+                self._sel_anchor_col = ci
+        else:
+            self._sel_cols = {ci}
+            self._sel_anchor_col = ci
+        self._apply_selection_styles()
+
+    def _click_row(self, event, ri):
+        shift = bool(event.state & 0x0001)
+        ctrl = bool(event.state & 0x0004) or bool(event.state & 0x8)
+        self._sel_cols.clear()
+        if shift and self._sel_anchor_row is not None:
+            lo, hi = sorted((self._sel_anchor_row, ri))
+            self._sel_rows = set(range(lo, hi + 1))
+        elif ctrl:
+            if ri in self._sel_rows:
+                self._sel_rows.discard(ri)
+            else:
+                self._sel_rows.add(ri)
+                self._sel_anchor_row = ri
+        else:
+            self._sel_rows = {ri}
+            self._sel_anchor_row = ri
+        self._apply_selection_styles()
+
+    def _click_cell(self, r, c):
+        if self._sel_cols or self._sel_rows:
+            self._clear_selection()
+            self._apply_selection_styles()
+
+    def _on_delete_key(self, event):
+        if not (self._sel_cols or self._sel_rows):
+            return
+        for c in self._sel_cols:
+            for r in range(len(self._cells)):
+                self._cells[r][c].set("")
+        for r in self._sel_rows:
+            for c in range(len(self._headers)):
+                self._cells[r][c].set("")
+        self._status_var.set("Cleared selection.")
+        return "break"
+
+    def _on_copy_key(self, event):
+        if not (self._sel_cols or self._sel_rows):
+            return
+        if self._sel_cols and not self._sel_rows:
+            cols = sorted(self._sel_cols)
+            lines = ["\t".join(self._headers[c].get() for c in cols)]
+            for r in range(len(self._cells)):
+                lines.append("\t".join(self._cells[r][c].get() for c in cols))
+        elif self._sel_rows and not self._sel_cols:
+            rows = sorted(self._sel_rows)
+            lines = ["\t".join(self._cells[r][c].get() for c in range(len(self._headers))) for r in rows]
+        else:
+            rows = sorted(self._sel_rows) if self._sel_rows else list(range(len(self._cells)))
+            cols = sorted(self._sel_cols) if self._sel_cols else list(range(len(self._headers)))
+            lines = ["\t".join(self._cells[r][c].get() for c in cols) for r in rows]
+        text = "\n".join(lines)
+        try:
+            self.clipboard_clear()
+            self.clipboard_append(text)
+            self._status_var.set(f"Copied {len(lines)} line(s).")
+        except Exception:
+            pass
+        return "break"
+
+    def _move(self, r, c):
+        if 0 <= r < len(self._cells) and 0 <= c < len(self._headers):
+            e = self._cell_entries[r][c]
+            e.focus_set()
+            e.icursor("end")
+        return "break"
+
+    def _focus_pos(self, w):
+        for r, row in enumerate(self._cell_entries):
+            for c, e in enumerate(row):
+                if e is w:
+                    return r, c
+        return None
+
+    def _maybe_left(self, event):
+        if event.widget.index("insert") == 0:
+            p = self._focus_pos(event.widget)
+            if p:
+                return self._move(p[0], p[1] - 1)
+
+    def _maybe_right(self, event):
+        w = event.widget
+        if w.index("insert") == len(w.get()):
+            p = self._focus_pos(w)
+            if p:
+                return self._move(p[0], p[1] + 1)
+
+    # --- context menus ---
+    def _cell_menu(self, event, r, c):
+        # If clicked cell isn't part of current selection, select its column
+        if not (c in self._sel_cols or r in self._sel_rows):
+            self._sel_rows.clear()
+            self._sel_cols = {c}
+            self._sel_anchor_col = c
+            self._apply_selection_styles()
+        m = tk.Menu(self, tearoff=0)
+        if self._sel_cols:
+            cols_lbl = ", ".join(self._col_letter(x) for x in sorted(self._sel_cols))
+            m.add_command(label=f"Insert column left of {self._col_letter(c)}",
+                          command=lambda: self.insert_column(c))
+            m.add_command(label=f"Insert column right of {self._col_letter(c)}",
+                          command=lambda: self.insert_column(c + 1))
+            m.add_command(label=f"Delete column(s) {cols_lbl}",
+                          command=self.delete_selected_columns)
+            m.add_command(label=f"Clear column(s) {cols_lbl}",
+                          command=self.clear_selected_columns)
+        if self._sel_rows:
+            if self._sel_cols:
+                m.add_separator()
+            rows_lbl = ", ".join(str(x + 1) for x in sorted(self._sel_rows))
+            m.add_command(label=f"Insert row above {r+1}",
+                          command=lambda: self.insert_row(r))
+            m.add_command(label=f"Insert row below {r+1}",
+                          command=lambda: self.insert_row(r + 1))
+            m.add_command(label=f"Delete row(s) {rows_lbl}",
+                          command=self.delete_selected_rows)
+        m.add_separator()
+        m.add_command(label="Clear selected cells", command=lambda: self._on_delete_key(None))
+        m.tk_popup(event.x_root, event.y_root)
+        return "break"
+
+    def _col_menu(self, event, ci):
+        if ci not in self._sel_cols:
+            self._sel_rows.clear()
+            self._sel_cols = {ci}
+            self._sel_anchor_col = ci
+            self._apply_selection_styles()
+        sel = sorted(self._sel_cols)
+        label = ", ".join(self._col_letter(c) for c in sel)
+        m = tk.Menu(self, tearoff=0)
+        m.add_command(label=f"Insert column left of {self._col_letter(ci)}",
+                      command=lambda: self.insert_column(ci))
+        m.add_command(label=f"Insert column right of {self._col_letter(ci)}",
+                      command=lambda: self.insert_column(ci + 1))
+        m.add_separator()
+        m.add_command(label=f"Delete column(s) {label}", command=self.delete_selected_columns)
+        m.add_command(label=f"Clear column(s) {label}", command=self.clear_selected_columns)
+        m.tk_popup(event.x_root, event.y_root)
+
+    def _row_menu(self, event, ri):
+        if ri not in self._sel_rows:
+            self._sel_cols.clear()
+            self._sel_rows = {ri}
+            self._sel_anchor_row = ri
+            self._apply_selection_styles()
+        sel = sorted(self._sel_rows)
+        label = ", ".join(str(r + 1) for r in sel)
+        m = tk.Menu(self, tearoff=0)
+        m.add_command(label=f"Insert row above {ri+1}", command=lambda: self.insert_row(ri))
+        m.add_command(label=f"Insert row below {ri+1}", command=lambda: self.insert_row(ri + 1))
+        m.add_separator()
+        m.add_command(label=f"Delete row(s) {label}", command=self.delete_selected_rows)
+        m.tk_popup(event.x_root, event.y_root)
+
+    # --- actions ---
+    def add_column(self):
+        self.insert_column(len(self._headers))
+
+    def insert_column(self, idx):
+        idx = max(0, min(idx, len(self._headers)))
+        self._headers.insert(idx, tk.StringVar(value=f"Group {len(self._headers)+1}"))
+        for row in self._cells:
+            row.insert(idx, tk.StringVar(value=""))
+        self._clear_selection()
+        self._render_grid()
+
+    def remove_column(self):
+        if self._headers:
+            self.delete_column(len(self._headers) - 1)
+
+    def delete_column(self, idx):
+        if not (0 <= idx < len(self._headers)) or len(self._headers) <= 1:
+            return
+        self._headers.pop(idx)
+        for row in self._cells:
+            row.pop(idx)
+        self._render_grid()
+
+    def delete_selected_columns(self):
+        if not self._sel_cols:
+            self.remove_column()
+            return
+        for idx in sorted(self._sel_cols, reverse=True):
+            if len(self._headers) <= 1:
+                break
+            self._headers.pop(idx)
+            for row in self._cells:
+                row.pop(idx)
+        self._clear_selection()
+        self._render_grid()
+
+    def clear_column(self, idx):
+        if 0 <= idx < len(self._headers):
+            for row in self._cells:
+                row[idx].set("")
+
+    def clear_selected_columns(self):
+        for idx in self._sel_cols:
+            self.clear_column(idx)
+
+    def add_row(self):
+        self.insert_row(len(self._cells))
+
+    def insert_row(self, idx):
+        idx = max(0, min(idx, len(self._cells)))
+        self._cells.insert(idx, [tk.StringVar(value="") for _ in self._headers])
+        self._clear_selection()
+        self._render_grid()
+
+    def remove_row(self):
+        if self._cells:
+            self.delete_row(len(self._cells) - 1)
+
+    def delete_row(self, idx):
+        if not (0 <= idx < len(self._cells)) or len(self._cells) <= 1:
+            return
+        self._cells.pop(idx)
+        self._render_grid()
+
+    def delete_selected_rows(self):
+        if not self._sel_rows:
+            self.remove_row()
+            return
+        for idx in sorted(self._sel_rows, reverse=True):
+            if len(self._cells) <= 1:
+                break
+            self._cells.pop(idx)
+        self._clear_selection()
+        self._render_grid()
+
+
+    def clear_all(self):
+        if not messagebox.askyesno("Clear", "Clear all cells (keep group names)?", parent=self.winfo_toplevel()):
+            return
+        for row in self._cells:
+            for v in row:
+                v.set("")
+
+    def _on_paste_event(self, event):
+        try:
+            text = self.clipboard_get()
+        except Exception:
+            return
+        if "\n" not in text and "\t" not in text:
+            return
+        w = event.widget
+        anchor = (0, 0)
+        for r, row in enumerate(self._cell_entries):
+            for c, e in enumerate(row):
+                if e is w:
+                    anchor = (r, c)
+                    break
+        ar, ac = anchor
+        rows = [r for r in text.replace("\r", "").split("\n") if r != ""]
+        sep = "\t" if any("\t" in r for r in rows) else ("," if any("," in r for r in rows) else None)
+        parsed = [r.split(sep) if sep else [r] for r in rows]
+        needed_cols = ac + max(len(r) for r in parsed)
+        while len(self._headers) < needed_cols:
+            self._headers.append(tk.StringVar(value=f"Group {len(self._headers)+1}"))
+            for row in self._cells:
+                row.append(tk.StringVar(value=""))
+        needed_rows = ar + len(parsed)
+        while len(self._cells) < needed_rows:
+            self._cells.append([tk.StringVar(value="") for _ in self._headers])
+        for i, row in enumerate(parsed):
+            for j, val in enumerate(row):
+                self._cells[ar + i][ac + j].set(val.strip())
+        self._render_grid()
+        self._status_var.set(f"Pasted {len(parsed)} × {max(len(r) for r in parsed)}")
+        return "break"
+
+    # --- file I/O ---
+    def browse_file(self):
+        path = filedialog.askopenfilename(
+            title="Open spreadsheet",
+            filetypes=[("CSV/Excel", "*.csv *.tsv *.xlsx *.xls"), ("All files", "*.*")],
+        )
+        if not path:
+            return
+        try:
+            if path.lower().endswith((".xlsx", ".xls")):
+                sheet = _pick_excel_sheet_dialog(path)
+                if sheet is None:
+                    return
+                df = pd.read_excel(path, sheet_name=sheet)
+            elif path.lower().endswith(".tsv"):
+                df = pd.read_csv(path, sep="\t")
+            else:
+                df = pd.read_csv(path)
+                sheet = None
+        except Exception as e:
+            messagebox.showerror("Open", str(e))
+            return
+        dd = {str(c): [x for x in df[c].tolist() if pd.notna(x)] for c in df.columns}
+        self.load_from_dict(dd)
+        suffix = f" [{sheet}]" if sheet else ""
+        self._status_var.set(f"Loaded {os.path.basename(path)}{suffix} — {len(df)} rows × {len(df.columns)} cols")
+
+    def export_file(self):
+        dd, df, _ = self.collect()
+        if df.empty:
+            messagebox.showinfo("Export", "Grid is empty.")
+            return
+        wide = pd.DataFrame({k: pd.Series(v) for k, v in dd.items()})
+        path = filedialog.asksaveasfilename(defaultextension=".xlsx",
+                                            filetypes=[("Excel", "*.xlsx"), ("CSV", "*.csv")])
+        if not path:
+            return
+        try:
+            if path.lower().endswith(".csv"):
+                wide.to_csv(path, index=False)
+            else:
+                wide.to_excel(path, index=False)
+        except Exception as e:
+            messagebox.showerror("Export", str(e))
+            return
+        self._status_var.set(f"Saved {os.path.basename(path)}")
+
+    def load_from_dict(self, dd):
+        if not dd:
+            self._init_blank(self.DEFAULT_ROWS, self.DEFAULT_COLS)
+            return
+        names = list(dd.keys())
+        max_n = max((len(v) for v in dd.values()), default=0)
+        n_rows = max(max_n, self.DEFAULT_ROWS)
+        self._headers = [tk.StringVar(value=str(n)) for n in names]
+        self._cells = []
+        for r in range(n_rows):
+            row = []
+            for n in names:
+                vals = dd[n]
+                row.append(tk.StringVar(value=("" if r >= len(vals) or vals[r] is None
+                                                else _sse_fmt(vals[r]))))
+            self._cells.append(row)
+        self._render_grid()
+
+    def collect(self):
+        names = [h.get().strip() or f"Group {i+1}" for i, h in enumerate(self._headers)]
+        seen, uniq = {}, []
+        for n in names:
+            if n in seen:
+                seen[n] += 1
+                uniq.append(f"{n} ({seen[n]})")
+            else:
+                seen[n] = 1
+                uniq.append(n)
+        dd, rows_long = {}, []
+        for c, name in enumerate(uniq):
+            vals = []
+            for r in range(len(self._cells)):
+                v = _sse_to_float(self._cells[r][c].get())
+                if v is not None:
+                    vals.append(v)
+                    rows_long.append({"group": name, "value": v})
+            dd[name] = vals
+        df = pd.DataFrame(rows_long, columns=["group", "value"])
+        return dd, df, uniq
+
+    def apply(self):
+        try:
+            dd, df, cats = self.collect()
+        except Exception as e:
+            messagebox.showerror("Apply", str(e))
+            return
+        if not any(len(v) > 0 for v in dd.values()):
+            messagebox.showwarning("Apply", "No numeric values found.")
+            return
+        if self.on_apply:
+            try:
+                self.on_apply(dd, df, cats)
+                self._status_var.set(f"Applied — {len(cats)} groups, "
+                                     f"{sum(len(v) for v in dd.values())} values")
+            except Exception as e:
+                messagebox.showerror("Apply", str(e))
+
+
+# Backward-compat: keep a Toplevel version in case some other code imports it
+class SpreadsheetEditor(tk.Toplevel):
+    def __init__(self, master, initial_data=None, on_apply=None,
+                 title="Spreadsheet — edit data"):
+        super().__init__(master)
+        self.title(title)
+        self.geometry("980x640")
+        frame = SpreadsheetFrame(self, on_apply=lambda dd, df, cats: (
+            on_apply(dd, df, cats) if on_apply else None, self.destroy()))
+        frame.pack(fill="both", expand=True)
+        if initial_data:
+            frame.load_from_dict(initial_data)
+        try:
+            self.transient(master)
+        except Exception:
+            pass
+# =====================================================================
+#  End integrated spreadsheet editor
+# =====================================================================
+
+
 def open_config_gui(): 
     import platform 
     root = tk.Tk() 
@@ -1867,18 +3085,40 @@ def open_config_gui():
     apply_light_dust_blue_theme(root)
 
     root.title("Analysis Setup") 
-    root.geometry("1200x800") # Larger main window 
+    root.geometry("1600x900") # Larger main window 
     root.resizable(True, True) 
 
     # SCROLLABLE WRAPPER 
-    outer = ttk.Frame(root) 
-    outer.pack(fill="both", expand=True) 
+    # Integrated results layout: controls on the left, results on the right
+    global _RESULTS_PANEL
+    _paned = ttk.PanedWindow(root, orient="horizontal")
+    _paned.pack(fill="both", expand=True)
+    outer = ttk.Frame(_paned)
+
+    # GraphPad-style right pane: switch between Spreadsheet (data entry)
+    # and Results (tables / figures from each analysis).
+    right_nb = ttk.Notebook(_paned)
+    spreadsheet_tab = ttk.Frame(right_nb, padding=(6, 6))
+    results_tab = ttk.Frame(right_nb)
+    right_nb.add(spreadsheet_tab, text="📊 Spreadsheet")
+    right_nb.add(results_tab, text="📈 Results")
+
+    _RESULTS_PANEL = ResultsPanel(results_tab)
+    _RESULTS_PANEL.pack(fill="both", expand=True)
+    # Auto-switch to Results whenever a new result tab is added.
+    _RESULTS_PANEL.on_activity = lambda: right_nb.select(results_tab)
+
+    _paned.add(outer, weight=3)
+    _paned.add(right_nb, weight=4)
+    right_nb.select(spreadsheet_tab)  # start on Spreadsheet
+
     # Set the canvas background to match theme (NEW)
-    canvas = tk.Canvas(outer, highlightthickness=0, background="#B7C9E2") 
-    vscroll = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview) 
-    canvas.configure(yscrollcommand=vscroll.set) 
-    canvas.pack(side="left", fill="both", expand=True) 
-    vscroll.pack(side="right", fill="y") 
+    canvas = tk.Canvas(outer, highlightthickness=0, background="#B7C9E2")
+    vscroll = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
+    canvas.configure(yscrollcommand=vscroll.set)
+    canvas.pack(side="left", fill="both", expand=True)
+    vscroll.pack(side="right", fill="y")
+
     main = ttk.Frame(canvas, padding=(8, 6)) 
     main_window_id = canvas.create_window((0, 0), window=main, anchor="nw") 
     def on_main_configure(_event=None): 
@@ -1975,38 +3215,36 @@ def open_config_gui():
         for c in range(6):
             parent.grid_columnconfigure(c, weight=1)
 
+        # --- Logo dropdown menu (sole entry point for toolbar actions) ---
+        logo_menu = tk.Menu(bar, tearoff=0)
+
+        logo_menu.add_command(label="Canvas", command=lambda: InteractivePlane(root))
+        logo_menu.add_command(label="Calculator", command=lambda: launch_calculator(master=None))
+        logo_menu.add_command(label="Power analysis…", command=_open_power_analysis)
+        logo_menu.add_command(label="Multiple regression", command=open_multiple_regression)
+        logo_menu.add_command(label="Categorical tests", command=lambda: CategoricalTestsWindow(master=root))
+        logo_menu.add_command(label="Parametric tests", command=lambda: ParametricTestsWindow(master=root, title="Parametric tests"))
+        logo_menu.add_command(label="Survival (KM)", command=lambda: SurvivalAnalysisWindow(master=root))
+        logo_menu.add_command(label="Chemical Calculator", command=launch_chemical_calculator)
+
+        def _show_logo_menu(event):
+            w = event.widget
+            logo_menu.post(w.winfo_rootx(), w.winfo_rooty() + w.winfo_height())
+
         try:
-            logo_big = tk.PhotoImage(file="lq_logo.png")  # say it's 160 px wide
-            # Choose a factor that gets you near ~20px height. If original is ~160px tall:
-            logo_small = logo_big.subsample(12, 12)      # 160/8 = 20 px
-            logo_lbl = ttk.Label(bar, image=logo_small)
-            logo_lbl.image = logo_small  # prevent GC
+            logo_big = tk.PhotoImage(file="lq_logo.png")
+            logo_small = logo_big.subsample(12, 12)
+            logo_lbl = ttk.Label(bar, image=logo_small, cursor="hand2")
+            logo_lbl.image = logo_small
             logo_lbl.pack(side="left", padx=(0, 7))
         except Exception as e:
             print("Toolbar logo could not be loaded:", e)
+            logo_lbl = ttk.Label(bar, text="☰ Menu", cursor="hand2")
+            logo_lbl.pack(side="left", padx=(0, 7))
 
-        ttk.Button(bar, text="Canvas", command=lambda: InteractivePlane(root)).pack(side="left", padx=(0, 8))
-        ttk.Button(bar, text="Calculator", command=lambda: launch_calculator(master=None)).pack(side="left", padx=(0, 8))
-        ttk.Button(bar, text="Power analysis…", command=_open_power_analysis).pack(side="left", padx=(0, 0))
-        ttk.Button(bar, text="Multiple regression", command=open_multiple_regression).pack(side="left", padx=(6, 0))
-        ttk.Button(
-            bar,
-            text="Categorical tests",
-            command=lambda: CategoricalTestsWindow(master=root)
-        ).pack(side="left", padx=(6, 0))
-        ttk.Button(
-            bar,
-            text="Parametric tests",
-            command=lambda: ParametricTestsWindow(master=root, title="Categorical tests")
-        ).pack(side="left", padx=(6, 0))
-        ttk.Button(
-            bar,
-            text="Survival (KM)",
-            command=lambda: SurvivalAnalysisWindow(master=root)
-        ).pack(side="left", padx=(6, 0))
+        logo_lbl.bind("<Button-1>", _show_logo_menu)
 
-
-        return bar 
+        return bar
     toolbar = build_toolbar(main) # place at the top 
 
     # Main layout/content 
@@ -2037,12 +3275,18 @@ def open_config_gui():
     y_min_var = tk.StringVar(value="") 
     y_max_var = tk.StringVar(value="") 
     current_colors: Dict[str, str] = {} 
+    current_hatches: Dict[str, str] = {}        # per-group infill pattern
+    current_hatch_colors: Dict[str, str] = {}   # per-group pattern (edge) color
     selected_groups: Dict[str, tk.BooleanVar] = {} 
     factor_a_var = tk.StringVar(value="") 
     factor_b_var = tk.StringVar(value="") 
     series_factor_var = tk.StringVar(value="") 
     x_col_var = tk.StringVar(value="") 
     sig_marker_mode = tk.StringVar(value="p-value") 
+    # NEW: font-size controls
+    y_label_fontsize_var = tk.StringVar(value="15")
+    y_tick_fontsize_var  = tk.StringVar(value="10")
+    sig_fontsize_var     = tk.StringVar(value="10")
     adv_show = tk.BooleanVar(value=False) 
     base_gap_factor_var = tk.StringVar(value="0.08") 
     stack_step_factor_var = tk.StringVar(value="0.15") 
@@ -2088,166 +3332,250 @@ def open_config_gui():
             token_to_display[tok] = disp 
         return list(display_to_token.keys()) 
 
-    # Start form rows BELOW the toolbar 
-    r = 1 
-    ttk.Label(main, text="Data file (CSV/Excel) (group,value,[subject], …):").grid(row=r, column=0, sticky="w") 
-    ttk.Entry(main, textvariable=csv_path, width=36).grid(row=r, column=1, columnspan=2, sticky="we", padx=(4,0)) 
-    ttk.Checkbutton(main, text="Interpret columns as groups", variable=interpret_wide_var).grid(row=r, column=4, sticky="e") 
-    r += 1 
-    def browse_data_file(): 
-        nonlocal data_dict, df_data, categories 
-        path = filedialog.askopenfilename( 
-            title="Select data file", 
-            filetypes=[ 
-                ("CSV or Excel", "*.csv *.xlsx *.xls"), 
-                ("CSV", "*.csv"), 
-                ("Excel", "*.xlsx *.xls"), 
-                ("All files", "*.*"), 
-            ], 
-        ) 
-        if not path: 
-            return 
-        try: 
-            ext = os.path.splitext(path)[1].lower() 
-            chosen_sheet = None 
-            if ext in {".xlsx", ".xlsm", ".xltx", ".xltm", ".xls"}: 
-                sheets = _excel_sheet_names(path) 
-                if len(sheets) > 1: 
-                    chosen_sheet = _pick_excel_sheet_dialog(path) 
-                if chosen_sheet is None and len(sheets) > 1: 
-                    return 
-            if interpret_wide_var.get() and ext in {".xlsx", ".xlsm", ".xltx", ".xltm", ".xls"} and is_wide_excel(path, sheet=chosen_sheet): 
-                dd, df = load_excel_wide(path, sheet=chosen_sheet) 
-            else: 
-                dd, df = load_data(path, sheet=chosen_sheet) 
-            data_dict, df_data = dd, df 
-            categories = list(data_dict.keys()) 
-            csv_path.set(path) 
-            refresh_groups() 
-            rebuild_color_rows() 
-            messagebox.showinfo("File loaded", f"Loaded {len(data_dict)} groups from:\n{os.path.basename(path)}") 
-        except Exception as e: 
-            print("File load error:\n", traceback.format_exc()) 
-            messagebox.showerror("Error loading file", f"{type(e).__name__}: {e}") 
-    ttk.Button(main, text="Browse…", command=browse_data_file).grid(row=r-1, column=3, sticky="e") 
-    ttk.Label(main, text="Primary analysis:").grid(row=r, column=0, sticky="w") 
-    analysis_cb = ttk.Combobox( 
-        main, textvariable=analysis, 
-        values=[ 
-            "None", 
-            "Normality (all)","ANOVA","ANOVA (two-way)","Kruskal", 
-            "Mann–Whitney (2 groups)","t_ind_equal","t_ind_welch", 
-            "t_paired","Wilcoxon (paired)","t_one_sample","Friedman", 
-            "Descriptives" 
-        ], 
-        width=24, state="readonly" 
-    ) 
-    analysis_cb.grid(row=r, column=1, sticky="w", padx=(4,0)) 
-    ttk.Label(main, text="Post-hoc (optional):").grid(row=r, column=2, sticky="w") 
-    posthoc_cb = ttk.Combobox(main, textvariable=posthoc, values=["None"], width=24, state="readonly") 
-    posthoc_cb.grid(row=r, column=3, sticky="w", padx=(4,0)) 
-    r += 1 
-    ttk.Label(main, text="Plot type:").grid(row=r, column=0, sticky="w") 
-    ttk.Combobox( 
-        main, textvariable=plot_type, width=24, state="readonly", 
-        values=[ 
-            "None", 
-            "Bar + scatter", "Strip", 
-            "Mean ± CI", "Line ± CI", "Line (means)", 
-            "Boxplot", "Violin", 
-            "Area (quartiles stacked)", 
-            "Lines (series)", "Areas (series)", 
-            "Regression (series)", 
-            "Exponential regression (series)", 
-            "Regression (global)", 
-            "Exponential regression (global)", 
-            "Pie chart" 
-        ] 
-    ).grid(row=r, column=1, sticky="w", padx=(4,0)) 
-    r += 1 
-    ttk.Label(main, text="Series factor (for multi-lines/areas/regression):").grid(row=r, column=0, sticky="w") 
-    series_factor_cb = ttk.Combobox(main, textvariable=series_factor_var, values=[], width=24, state="readonly") 
-    series_factor_cb.grid(row=r, column=1, sticky="w", padx=(4,0)) 
-    ttk.Label(main, text="X column (numeric, optional for regression):").grid(row=r, column=2, sticky="w") 
-    x_col_cb = ttk.Combobox(main, textvariable=x_col_var, values=[], width=24, state="readonly") 
-    x_col_cb.grid(row=r, column=3, sticky="w", padx=(4,0)) 
-    r += 1 
-    ttk.Label(main, text="Comparison scope (pairwise):").grid(row=r, column=0, sticky="w") 
-    scope_cb = ttk.Combobox(main, textvariable=scope, values=["vs_ref","all_pairs"], width=24, state="readonly") 
-    scope_cb.grid(row=r, column=1, sticky="w", padx=(4,0)) 
-    ttk.Label(main, text="Correction:").grid(row=r, column=2, sticky="w") 
-    ttk.Combobox(main, textvariable=correction, values=["None","bonferroni","holm","bh"], width=24, state="readonly").grid(row=r, column=3, sticky="w", padx=(4,0)) 
-    r += 1 
-    ttk.Label(main, text="Significance marker:").grid(row=r, column=0, sticky="w") 
-    ttk.Combobox(main, textvariable=sig_marker_mode, values=["p-value","asterisks"], width=24, state="readonly").grid(row=r, column=1, sticky="w", padx=(4,0)) 
-    r += 1 
-    ttk.Label(main, text="Alpha:").grid(row=r, column=0, sticky="w") 
-    ttk.Entry(main, textvariable=alpha, width=10).grid(row=r, column=1, sticky="w", padx=(4,0)) 
-    ttk.Label(main, text="CI level (0-1):").grid(row=r, column=2, sticky="w") 
-    ttk.Entry(main, textvariable=ci_level, width=10).grid(row=r, column=3, sticky="w", padx=(4,0)) 
-    r += 1 
-    ttk.Label(main, text="Y tick step:").grid(row=r, column=2, sticky="w") 
-    ttk.Entry(main, textvariable=tick, width=10).grid(row=r, column=3, sticky="w", padx=(4,0)) 
-    r += 1 
-    ttk.Label(main, text="Default ref (brackets):").grid(row=r, column=0, sticky="w") 
-    default_ref_cb = ttk.Combobox(main, textvariable=default_ref_var, values=[], width=24, state="readonly") 
-    default_ref_cb.grid(row=r, column=1, sticky="w", padx=(4,0)) 
-    ttk.Label(main, text="Analysis ref:").grid(row=r, column=2, sticky="w") 
-    ref_cb = ttk.Combobox(main, textvariable=ref_var, values=[], width=24, state="readonly") 
-    ref_cb.grid(row=r, column=3, sticky="w", padx=(4,0)) 
-    r += 1 
-    ttk.Label(main, text="Exclude (vs_ref):").grid(row=r, column=0, sticky="w") 
-    exclude_cb = ttk.Combobox(main, textvariable=exclude_var, values=[], width=24, state="readonly") 
-    exclude_cb.grid(row=r, column=1, sticky="w", padx=(4,0)) 
-    ttk.Label(main, text="One-sample μ:").grid(row=r, column=2, sticky="w") 
-    ttk.Entry(main, textvariable=mu_var, width=10).grid(row=r, column=3, sticky="w", padx=(4,0)) 
-    r += 1 
-    ttk.Label(main, text="Factor A (two-way):").grid(row=r, column=0, sticky="w") 
-    factor_a_cb = ttk.Combobox(main, textvariable=factor_a_var, values=[], width=24, state="readonly") 
-    factor_a_cb.grid(row=r, column=1, sticky="w", padx=(4,0)) 
-    ttk.Label(main, text="Factor B (two-way):").grid(row=r, column=2, sticky="w") 
-    factor_b_cb = ttk.Combobox(main, textvariable=factor_b_var, values=[], width=24, state="readonly") 
-    factor_b_cb.grid(row=r, column=3, sticky="w", padx=(4,0)) 
-    r += 1 
-    ttk.Label(main, text="Y-axis label:").grid(row=r, column=2, sticky="e", padx=(0,6)) 
-    y_label_cb = ttk.Combobox(main, textvariable=y_label_var, values=y_history, width=24) 
-    y_label_cb.grid(row=r, column=3, sticky="w") 
-    r += 1 
-    ttk.Label(main, text="Y-axis min (optional):").grid(row=r, column=0, sticky="w") 
-    ttk.Entry(main, textvariable=y_min_var, width=10).grid(row=r, column=1, sticky="w", padx=(4,0)) 
-    ttk.Label(main, text="Y-axis max (optional):").grid(row=r, column=2, sticky="w") 
-    ttk.Entry(main, textvariable=y_max_var, width=10).grid(row=r, column=3, sticky="w", padx=(4,0)) 
-    r += 1 
-    subj_label = ttk.Label(main, text="Subject column: ✗ (paired/RM disabled)") 
-    subj_label.grid(row=r, column=0, columnspan=2, sticky="w") 
-    r += 1 
-    ttk.Label(main, text="Bracket source:").grid(row=r, column=0, sticky="w") 
-    bracket_mode_cb = ttk.Combobox( 
-        main, textvariable=bracket_mode, 
-        values=["Default ref only", "All significant", "All (ignore significance)", "Custom…"], 
-        width=24, state="readonly" 
-    ) 
-    bracket_mode_cb.grid(row=r, column=1, sticky="w", padx=(4,0)) 
-    custom_pairs_frame = ttk.LabelFrame(main, text="Bracket pairs (Custom)", padding=(8,6)) 
-    custom_pairs_frame.grid(row=r, column=0, columnspan=4, sticky="nsew") 
-    r += 1 
-    ttk.Label(custom_pairs_frame, text="Choose a pair (all comparisons shown):").grid(row=0, column=0, sticky="w") 
-    pair_combo = ttk.Combobox(custom_pairs_frame, values=[], width=30, state="readonly") 
-    pair_combo.grid(row=0, column=1, sticky="w", padx=(4,0)) 
-    add_btn = ttk.Button(custom_pairs_frame, text="Add") 
-    add_btn.grid(row=0, column=2, sticky="w", padx=(6,0)) 
-    ttk.Label(custom_pairs_frame, text="Selected pairs:").grid(row=1, column=0, sticky="w", pady=(6,0)) 
-    selected_list = tk.Listbox(custom_pairs_frame, height=8, width=36, exportselection=False) 
-    selected_list.grid(row=2, column=0, columnspan=2, sticky="nsew", pady=(2,0)) 
-    remove_btn = ttk.Button(custom_pairs_frame, text="Remove") 
-    remove_btn.grid(row=2, column=2, sticky="nw", padx=(6,0)) 
-    clear_btn = ttk.Button(custom_pairs_frame, text="Clear") 
-    clear_btn.grid(row=3, column=2, sticky="nw", padx=(6,0), pady=(4,0)) 
-    include_nonsig_chk = ttk.Checkbutton(custom_pairs_frame, text="Include non-significant (ignore α)", variable=include_nonsig) 
-    include_nonsig_chk.grid(row=4, column=0, columnspan=2, sticky="w", pady=(6,0)) 
-    done_btn = ttk.Button(custom_pairs_frame, text="Done") 
-    done_btn.grid(row=4, column=2, sticky="e", padx=(6,0)) 
-    custom_pairs_frame.grid_remove() 
+    # Start form rows BELOW the toolbar
+    r = 1
+    main.grid_columnconfigure(0, weight=1)
+
+    # =========================================================
+    # Spreadsheet tab (GraphPad-style): empty placeholder with one
+    # Import button until a file is loaded; the editor itself only
+    # appears after data exists.
+    # =========================================================
+    sheet_container = ttk.Frame(spreadsheet_tab)
+    sheet_container.pack(fill="both", expand=True)
+
+    placeholder = ttk.Frame(sheet_container, padding=(40, 60))
+    placeholder.pack(fill="both", expand=True)
+    ttk.Label(placeholder,
+              text="No data loaded.",
+              font=("TkDefaultFont", 14, "bold")).pack(pady=(0, 6))
+    ttk.Label(placeholder,
+              text="Import a CSV or Excel file to start editing your groups.\n"
+                   "Each column becomes one group in the analysis.",
+              justify="center",
+              foreground="#566275").pack(pady=(0, 18))
+
+    def _apply_from_sheet(dd, df, cats):
+        nonlocal data_dict, df_data, categories
+        data_dict, df_data = dd, df
+        categories = list(data_dict.keys())
+        csv_path.set("<from spreadsheet>")
+        refresh_groups()
+        rebuild_color_rows()
+
+    # The real editor is created on first import so it isn't visible empty.
+    embedded_sheet = None
+
+    def _ensure_editor():
+        nonlocal embedded_sheet
+        if embedded_sheet is not None:
+            return embedded_sheet
+        placeholder.pack_forget()
+        embedded_sheet = SpreadsheetFrame(sheet_container, on_apply=_apply_from_sheet)
+        embedded_sheet.pack(fill="both", expand=True)
+        return embedded_sheet
+
+    def import_into_spreadsheet():
+        path = filedialog.askopenfilename(
+            title="Import CSV / Excel",
+            filetypes=[
+                ("CSV or Excel", "*.csv *.tsv *.xlsx *.xls"),
+                ("CSV", "*.csv"),
+                ("Excel", "*.xlsx *.xls"),
+                ("All files", "*.*"),
+            ],
+        )
+        if not path:
+            return
+        try:
+            ext = os.path.splitext(path)[1].lower()
+            if ext in {".xlsx", ".xls"}:
+                sheet = _pick_excel_sheet_dialog(path)
+                if sheet is None:
+                    return
+                df = pd.read_excel(path, sheet_name=sheet)
+            elif ext == ".tsv":
+                df = pd.read_csv(path, sep="\t")
+            else:
+                df = pd.read_csv(path)
+        except Exception as e:
+            print("Import error:\n", traceback.format_exc())
+            messagebox.showerror("Import", f"{type(e).__name__}: {e}")
+            return
+        dd = {str(c): [x for x in df[c].tolist() if pd.notna(x)] for c in df.columns}
+        editor = _ensure_editor()
+        editor.load_from_dict(dd)
+        csv_path.set(path)
+        right_nb.select(spreadsheet_tab)
+
+    ttk.Button(placeholder, text="Import CSV / Excel…",
+               command=import_into_spreadsheet).pack()
+
+    # Mirror import button in the left form toolbar area so it's reachable
+    # without leaving the Setup view.
+
+    # --- end integrated spreadsheet panel -------------------------------
+
+    # =========================================================
+    # Form is split into labelled sections so widgets don't collide.
+    # Each section owns its own internal 4-column grid.
+    # =========================================================
+
+    def _section(title):
+        nonlocal r
+        f = ttk.LabelFrame(main, text=title, padding=(8, 6))
+        f.grid(row=r, column=0, columnspan=5, sticky="we", pady=(6, 0))
+        for c in (1, 3):
+            f.grid_columnconfigure(c, weight=1)
+        r += 1
+        return f
+
+    # NEW: Top Run button (easy to find)
+    _run_holder = {"cb": lambda: None}
+    top_run = ttk.Frame(main)
+    top_run.grid(row=r, column=0, columnspan=5, sticky="we", pady=(4, 0))
+    ttk.Button(top_run, text="▶  Run analysis", command=lambda: _run_holder["cb"]()).pack(side="left", padx=4, pady=2)
+    r += 1
+
+    # ---- Analysis -------------------------------------------------------
+    sec_analysis = _section("Analysis")
+    ttk.Label(sec_analysis, text="Primary:").grid(row=0, column=0, sticky="w")
+    analysis_cb = ttk.Combobox(
+        sec_analysis, textvariable=analysis,
+        values=[
+            "None",
+            "Normality (all)", "ANOVA", "ANOVA (two-way)", "Kruskal",
+            "Mann–Whitney (2 groups)", "t_ind_equal", "t_ind_welch",
+            "t_paired", "Wilcoxon (paired)", "t_one_sample", "Friedman",
+            "Descriptives"
+        ],
+        width=24, state="readonly"
+    )
+    analysis_cb.grid(row=0, column=1, sticky="we", padx=(4, 12), pady=2)
+    ttk.Label(sec_analysis, text="Post-hoc:").grid(row=0, column=2, sticky="w")
+    posthoc_cb = ttk.Combobox(sec_analysis, textvariable=posthoc, values=["None"], width=24, state="readonly")
+    posthoc_cb.grid(row=0, column=3, sticky="we", padx=(4, 0), pady=2)
+
+    ttk.Label(sec_analysis, text="Comparison scope:").grid(row=1, column=0, sticky="w")
+    scope_cb = ttk.Combobox(sec_analysis, textvariable=scope, values=["vs_ref", "all_pairs"], width=24, state="readonly")
+    scope_cb.grid(row=1, column=1, sticky="we", padx=(4, 12), pady=2)
+    ttk.Label(sec_analysis, text="Correction:").grid(row=1, column=2, sticky="w")
+    ttk.Combobox(sec_analysis, textvariable=correction, values=["None", "bonferroni", "holm", "bh"],
+                 width=24, state="readonly").grid(row=1, column=3, sticky="we", padx=(4, 0), pady=2)
+
+    ttk.Label(sec_analysis, text="Significance marker:").grid(row=2, column=0, sticky="w")
+    ttk.Combobox(sec_analysis, textvariable=sig_marker_mode, values=["asterisks", "p-value"],
+                 width=24, state="readonly").grid(row=2, column=1, sticky="we", padx=(4, 12), pady=2)
+    ttk.Label(sec_analysis, text="Alpha:").grid(row=2, column=2, sticky="w")
+    ttk.Entry(sec_analysis, textvariable=alpha, width=10).grid(row=2, column=3, sticky="w", padx=(4, 0), pady=2)
+
+    ttk.Label(sec_analysis, text="CI level (0-1):").grid(row=3, column=0, sticky="w")
+    ttk.Entry(sec_analysis, textvariable=ci_level, width=10).grid(row=3, column=1, sticky="w", padx=(4, 12), pady=2)
+    ttk.Label(sec_analysis, text="One-sample μ:").grid(row=3, column=2, sticky="w")
+    ttk.Entry(sec_analysis, textvariable=mu_var, width=10).grid(row=3, column=3, sticky="w", padx=(4, 0), pady=2)
+    # NEW: font size controls
+    ttk.Label(sec_analysis, text="Y label font size:").grid(row=4, column=0, sticky="w")
+    ttk.Entry(sec_analysis, textvariable=y_label_fontsize_var, width=10).grid(row=4, column=1, sticky="w", padx=(4, 12), pady=2)
+    ttk.Label(sec_analysis, text="Y tick font size:").grid(row=4, column=2, sticky="w")
+    ttk.Entry(sec_analysis, textvariable=y_tick_fontsize_var, width=10).grid(row=4, column=3, sticky="w", padx=(4, 0), pady=2)
+    ttk.Label(sec_analysis, text="p-value / asterisk font size:").grid(row=5, column=0, sticky="w")
+    ttk.Entry(sec_analysis, textvariable=sig_fontsize_var, width=10).grid(row=5, column=1, sticky="w", padx=(4, 12), pady=2)
+
+    # ---- Plot -----------------------------------------------------------
+    sec_plot = _section("Plot")
+    ttk.Label(sec_plot, text="Plot type:").grid(row=0, column=0, sticky="w")
+    ttk.Combobox(
+        sec_plot, textvariable=plot_type, width=24, state="readonly",
+        values=[
+            "None",
+            "Bar + scatter", "Strip",
+            "Mean ± CI", "Line ± CI", "Line (means)",
+            "Boxplot", "Violin",
+            "Area (quartiles stacked)",
+            "Lines (series)", "Areas (series)",
+            "Regression (series)",
+            "Exponential regression (series)",
+            "Regression (global)",
+            "Exponential regression (global)",
+            "Pie chart"
+        ]
+    ).grid(row=0, column=1, sticky="we", padx=(4, 12), pady=2)
+    ttk.Label(sec_plot, text="Y-axis label:").grid(row=0, column=2, sticky="w")
+    y_label_cb = ttk.Combobox(sec_plot, textvariable=y_label_var, values=y_history, width=24)
+    y_label_cb.grid(row=0, column=3, sticky="we", padx=(4, 0), pady=2)
+
+    ttk.Label(sec_plot, text="Series factor:").grid(row=1, column=0, sticky="w")
+    series_factor_cb = ttk.Combobox(sec_plot, textvariable=series_factor_var, values=[], width=24, state="readonly")
+    series_factor_cb.grid(row=1, column=1, sticky="we", padx=(4, 12), pady=2)
+    ttk.Label(sec_plot, text="X column (numeric):").grid(row=1, column=2, sticky="w")
+    x_col_cb = ttk.Combobox(sec_plot, textvariable=x_col_var, values=[], width=24, state="readonly")
+    x_col_cb.grid(row=1, column=3, sticky="we", padx=(4, 0), pady=2)
+
+    ttk.Label(sec_plot, text="Y min:").grid(row=2, column=0, sticky="w")
+    ttk.Entry(sec_plot, textvariable=y_min_var, width=10).grid(row=2, column=1, sticky="w", padx=(4, 12), pady=2)
+    ttk.Label(sec_plot, text="Y max:").grid(row=2, column=2, sticky="w")
+    ttk.Entry(sec_plot, textvariable=y_max_var, width=10).grid(row=2, column=3, sticky="w", padx=(4, 0), pady=2)
+
+    ttk.Label(sec_plot, text="Y tick step:").grid(row=3, column=0, sticky="w")
+    ttk.Entry(sec_plot, textvariable=tick, width=10).grid(row=3, column=1, sticky="w", padx=(4, 12), pady=2)
+
+    # ---- References & factors ------------------------------------------
+    sec_refs = _section("References & factors")
+    ttk.Label(sec_refs, text="Default ref (brackets):").grid(row=0, column=0, sticky="w")
+    default_ref_cb = ttk.Combobox(sec_refs, textvariable=default_ref_var, values=[], width=24, state="readonly")
+    default_ref_cb.grid(row=0, column=1, sticky="we", padx=(4, 12), pady=2)
+    ttk.Label(sec_refs, text="Analysis ref:").grid(row=0, column=2, sticky="w")
+    ref_cb = ttk.Combobox(sec_refs, textvariable=ref_var, values=[], width=24, state="readonly")
+    ref_cb.grid(row=0, column=3, sticky="we", padx=(4, 0), pady=2)
+
+    ttk.Label(sec_refs, text="Exclude (vs_ref):").grid(row=1, column=0, sticky="w")
+    exclude_cb = ttk.Combobox(sec_refs, textvariable=exclude_var, values=[], width=24, state="readonly")
+    exclude_cb.grid(row=1, column=1, sticky="we", padx=(4, 12), pady=2)
+
+    ttk.Label(sec_refs, text="Factor A (two-way):").grid(row=2, column=0, sticky="w")
+    factor_a_cb = ttk.Combobox(sec_refs, textvariable=factor_a_var, values=[], width=24, state="readonly")
+    factor_a_cb.grid(row=2, column=1, sticky="we", padx=(4, 12), pady=2)
+    ttk.Label(sec_refs, text="Factor B (two-way):").grid(row=2, column=2, sticky="w")
+    factor_b_cb = ttk.Combobox(sec_refs, textvariable=factor_b_var, values=[], width=24, state="readonly")
+    factor_b_cb.grid(row=2, column=3, sticky="we", padx=(4, 0), pady=2)
+
+    subj_label = ttk.Label(sec_refs, text="Subject column: ✗ (paired/RM disabled)")
+    subj_label.grid(row=3, column=0, columnspan=4, sticky="w", pady=(4, 0))
+
+    # ---- Brackets -------------------------------------------------------
+    sec_brk = _section("Brackets")
+    ttk.Label(sec_brk, text="Bracket source:").grid(row=0, column=0, sticky="w")
+    bracket_mode_cb = ttk.Combobox(
+        sec_brk, textvariable=bracket_mode,
+        values=["Default ref only", "All significant", "All (ignore significance)", "Custom…"],
+        width=24, state="readonly"
+    )
+    bracket_mode_cb.grid(row=0, column=1, sticky="we", padx=(4, 0), pady=2)
+
+    # Custom-pairs panel lives on its OWN row inside the section (no overlap).
+    custom_pairs_frame = ttk.LabelFrame(sec_brk, text="Bracket pairs (Custom)", padding=(6, 4))
+    custom_pairs_frame.grid(row=1, column=0, columnspan=5, sticky="nsew", pady=(6, 0))
+    ttk.Label(custom_pairs_frame, text="Pair:").grid(row=0, column=0, sticky="w")
+    pair_combo = ttk.Combobox(custom_pairs_frame, values=[], state="readonly")
+    pair_combo.grid(row=0, column=1, sticky="ew", padx=(4, 0))
+    add_btn = ttk.Button(custom_pairs_frame, text="Add", width=7)
+    add_btn.grid(row=0, column=2, sticky="w", padx=(4, 0))
+    ttk.Label(custom_pairs_frame, text="Selected:").grid(row=1, column=0, sticky="nw", pady=(6, 0))
+    selected_list = tk.Listbox(custom_pairs_frame, height=8, exportselection=False)
+    selected_list.grid(row=1, column=1, rowspan=2, sticky="nsew", pady=(6, 0))
+    remove_btn = ttk.Button(custom_pairs_frame, text="Remove", width=7)
+    remove_btn.grid(row=1, column=2, sticky="nw", padx=(4, 0), pady=(6, 0))
+    clear_btn = ttk.Button(custom_pairs_frame, text="Clear", width=7)
+    clear_btn.grid(row=2, column=2, sticky="nw", padx=(4, 0), pady=(2, 0))
+    include_nonsig_chk = ttk.Checkbutton(custom_pairs_frame, text="Include non-significant (ignore α)",
+                                         variable=include_nonsig)
+    include_nonsig_chk.grid(row=3, column=0, columnspan=2, sticky="w", pady=(6, 0))
+    done_btn = ttk.Button(custom_pairs_frame, text="Done", width=7)
+    done_btn.grid(row=3, column=2, sticky="e", padx=(4, 0), pady=(6, 0))
+    custom_pairs_frame.grid_columnconfigure(1, weight=1)
+    custom_pairs_frame.grid_rowconfigure(1, weight=1)
+    custom_pairs_frame.grid_remove()
+
     def on_add_pair(): 
         disp = pair_combo.get().strip() 
         tok = display_to_token.get(disp) 
@@ -2359,7 +3687,7 @@ def open_config_gui():
         on_bracket_mode_changed() 
     done_btn.configure(command=on_done_custom) 
     colors_frame = ttk.LabelFrame(main, text="Group colors", padding=(8,6)) 
-    colors_frame.grid(row=r, column=0, columnspan=4, sticky="we", pady=(6,0)) 
+    colors_frame.grid(row=r, column=0, columnspan=5, sticky="we", pady=(6,0))
     r += 1 
     colors_rows = ttk.Frame(colors_frame) 
     colors_rows.grid(row=0, column=0, sticky="we") 
@@ -2377,36 +3705,75 @@ def open_config_gui():
             btn = color_buttons.get(group) 
             if btn is not None: 
                 btn.configure(text=f"{group}: {hex_.upper()}") 
+    def pick_hatch_color_for(group: str):
+        cur = current_hatch_colors.get(group, "") or "#000000"
+        _, hex_ = colorchooser.askcolor(color=cur, title=f"Choose pattern color for {group}")
+        if hex_:
+            current_hatch_colors[group] = hex_.upper()
+            rebuild_color_rows()
+    # Patterns offered to the user. Empty = solid (no infill pattern).
+    PATTERN_CHOICES = ["(none)", "/", "//", "\\", "\\\\", "x", "xx", ".", "..",
+                       "+", "++", "o", "O", "*", "|", "-"]
+    def on_hatch_changed(group: str, value: str):
+        current_hatches[group] = "" if value == "(none)" else value
     def rebuild_color_rows(): 
         for w in colors_rows.winfo_children(): 
             w.destroy() 
         color_buttons.clear() 
+        # Header row
+        ttk.Label(colors_rows, text="", width=2).grid(row=0, column=0)
+        ttk.Label(colors_rows, text="Group").grid(row=0, column=1, sticky="w", padx=(0,6))
+        ttk.Label(colors_rows, text="Color").grid(row=0, column=2, sticky="w", padx=(0,6))
+        ttk.Label(colors_rows, text="Pattern").grid(row=0, column=3, sticky="w", padx=(0,6))
+        ttk.Label(colors_rows, text="Pattern color").grid(row=0, column=4, sticky="w", padx=(0,6))
         for i, g in enumerate(categories): 
+            row = i + 1
             # checkbox for selection 
             if g not in selected_groups: 
                 selected_groups[g] = tk.BooleanVar(value=True) 
             chk = ttk.Checkbutton(colors_rows, variable=selected_groups[g], text="") 
-            chk.grid(row=i, column=0, sticky="w", padx=(0,6), pady=2) 
+            chk.grid(row=row, column=0, sticky="w", padx=(0,6), pady=2) 
             # label 
-            ttk.Label(colors_rows, text=g).grid(row=i, column=1, sticky="w", padx=(0,6), pady=2) 
+            ttk.Label(colors_rows, text=g).grid(row=row, column=1, sticky="w", padx=(0,6), pady=2) 
             # color button 
             hex_color = current_colors.get(g, "") 
             if not (isinstance(hex_color, str) and hex_color.startswith("#") and len(hex_color) in (4, 7)): 
                 hex_color = "" 
             btn_text = f"{g}: {hex_color or '(auto)'}" 
             btn = ttk.Button(colors_rows, text=btn_text, command=lambda gr=g: pick_color_for(gr)) 
-            btn.grid(row=i, column=2, sticky="w", padx=(0,6), pady=2) 
+            btn.grid(row=row, column=2, sticky="w", padx=(0,6), pady=2) 
             color_buttons[g] = btn 
+            # pattern (hatch) combobox
+            cur_h = current_hatches.get(g, "")
+            cur_h_label = cur_h if cur_h else "(none)"
+            if cur_h_label not in PATTERN_CHOICES:
+                cur_h_label = "(none)"
+            h_var = tk.StringVar(value=cur_h_label)
+            cb = ttk.Combobox(colors_rows, textvariable=h_var, values=PATTERN_CHOICES,
+                              state="readonly", width=8)
+            cb.grid(row=row, column=3, sticky="w", padx=(0,6), pady=2)
+            cb.bind("<<ComboboxSelected>>",
+                    lambda _e, gr=g, var=h_var: on_hatch_changed(gr, var.get()))
+            # pattern color button
+            hc = current_hatch_colors.get(g, "")
+            hc_text = f"{hc}" if hc else "(auto)"
+            ttk.Button(colors_rows, text=hc_text,
+                       command=lambda gr=g: pick_hatch_color_for(gr)
+                       ).grid(row=row, column=4, sticky="w", padx=(0,6), pady=2)
     toolbar_frame = ttk.Frame(colors_frame) 
     toolbar_frame.grid(row=1, column=0, sticky="we", pady=(6,0)) 
     def clear_all_colors(): 
         current_colors.clear() 
+        current_hatches.clear()
+        current_hatch_colors.clear()
         rebuild_color_rows() 
-    def set_default_palette(): 
-        auto = ensure_colors_for_keys(categories, {}) 
-        current_colors.clear() 
-        current_colors.update(auto) 
-        rebuild_color_rows() 
+    def set_default_palette():
+        # Fill colors only; leave patterns as the user set them (default = none).
+        auto = ensure_colors_for_keys(categories, {})
+        current_colors.clear()
+        current_colors.update(auto)
+        rebuild_color_rows()
+
     def select_all_groups(): 
         for g in selected_groups: 
             selected_groups[g].set(True) 
@@ -2440,8 +3807,7 @@ def open_config_gui():
                 selected_groups[g] = tk.BooleanVar(value=True) 
             selected_groups[g].set(g in keep) 
         rebuild_color_rows() 
-    ttk.Button(toolbar_frame, text="Reset (auto)", command=clear_all_colors).grid(row=0, column=0, padx=(0,6)) 
-    ttk.Button(toolbar_frame, text="Fill with palette", command=set_default_palette).grid(row=0, column=1, padx=(0,6)) 
+    ttk.Button(toolbar_frame, text="Fill with palette", command=set_default_palette).grid(row=0, column=0, padx=(0,6))
     ttk.Checkbutton(toolbar_frame, text="Hide deselected groups in plots", variable=hide_deselected_plot).grid(row=0, column=2, padx=(12,0)) 
     ttk.Button(toolbar_frame, text="Select all groups", command=select_all_groups).grid(row=0, column=4, padx=(12,0)) 
     rebuild_color_rows() 
@@ -2449,7 +3815,7 @@ def open_config_gui():
     # -- Group ordering (rebuilt) --
     group_order_var = tk.StringVar(value="") 
     order_frame = ttk.LabelFrame(main, text="Group ordering", padding=(8, 6)) 
-    order_frame.grid(row=r, column=0, columnspan=4, sticky="we", pady=(6, 0)) 
+    order_frame.grid(row=r, column=0, columnspan=5, sticky="we", pady=(6, 0))
     r += 1 
     # Listbox with current groups 
     order_list = tk.Listbox(order_frame, height=10, exportselection=False) 
@@ -2516,8 +3882,8 @@ def open_config_gui():
     ttk.Label(csv_col, text="Group order (CSV)").grid(row=0, column=0, sticky="w") 
     csv_entry = ttk.Entry(csv_col, textvariable=group_order_var, width=37) 
     csv_entry.grid(row=1, column=0, sticky="we", pady=(2, 4)) 
-    ttk.Button(csv_col, text="Use list order → CSV", command=apply_from_listbox).grid(row=2, column=0, sticky="w", pady=(0, 4)) 
-    ttk.Button(csv_col, text="Load CSV → list", command=apply_csv_to_listbox).grid(row=3, column=0, sticky="w") 
+    
+    ttk.Button(csv_col, text="Load list", command=apply_csv_to_listbox).grid(row=3, column=0, sticky="w") 
     # Optional helpers: sort by mean (based on data_dict) 
     def sort_by_mean(reverse: bool = False): 
         try: 
@@ -2631,9 +3997,14 @@ def open_config_gui():
             "series_factor": series_factor_var.get().strip(), 
             "x_col": x_col_var.get().strip(), 
             "colors_json": json.dumps(ensure_colors_for_keys(categories, current_colors)), 
+            "hatches_json": json.dumps(dict(current_hatches)),
+            "hatch_colors_json": json.dumps(dict(current_hatch_colors)),
             "plot_type": plot_type.get().strip(), 
             "ci_level": ci_level.get().strip(), 
             "sig_marker_mode": sig_marker_mode.get().strip(), 
+            "y_label_fontsize": y_label_fontsize_var.get().strip(), 
+            "y_tick_fontsize":  y_tick_fontsize_var.get().strip(), 
+            "sig_fontsize":     sig_fontsize_var.get().strip(), 
             "y_min": y_min_var.get().strip(), 
             "y_max": y_max_var.get().strip(), 
             "group_order": group_order_var.get().strip(), # <— order comes from the mover 
@@ -2644,75 +4015,8 @@ def open_config_gui():
         execute_analysis(cfg, data_dict, df_data, result_hook=_result_hook) 
     def on_close(): 
         root.destroy() 
-    ttk.Button(btns, text="Run", command=on_run).grid(row=0, column=0, padx=6) 
+    _run_holder["cb"] = on_run
 
-    # (Removed duplicate 'Geometry Canvas' button — now in top toolbar)
-
-    # Advanced section toggle 
-    adv_toggle = ttk.Checkbutton( 
-        main, 
-        text="Show advanced significance bars (spacing)", 
-        variable=adv_show, 
-        command=lambda: (adv_frame.grid() if adv_show.get() else adv_frame.grid_remove()) 
-    ) 
-    adv_toggle.grid(row=r, column=0, columnspan=4, sticky="w") 
-    r += 1 
-    adv_frame = ttk.Frame(main, padding=(8,6)) 
-    adv_frame.grid(row=r, column=0, columnspan=4, sticky="nsew") 
-    r += 1 
-    ttk.Label(adv_frame, text="Bracket base gap factor:").grid(row=0, column=0, sticky="w") 
-    ttk.Entry(adv_frame, textvariable=base_gap_factor_var, width=8).grid(row=0, column=1, sticky="w", padx=(4,0)) 
-    ttk.Label(adv_frame, text="Stack step factor:").grid(row=0, column=2, sticky="w") 
-    ttk.Entry(adv_frame, textvariable=stack_step_factor_var, width=8).grid(row=0, column=3, sticky="w", padx=(4,0)) 
-    ttk.Label(adv_frame, text="Line height factor:").grid(row=1, column=0, sticky="w") 
-    ttk.Entry(adv_frame, textvariable=line_height_factor_var, width=8).grid(row=1, column=1, sticky="w", padx=(4,0)) 
-    ttk.Label(adv_frame, text="Collision K:").grid(row=1, column=2, sticky="w") 
-    ttk.Entry(adv_frame, textvariable=collision_k_var, width=8).grid(row=1, column=3, sticky="w", padx=(4,0)) 
-    ttk.Label(adv_frame, text="Top margin factor:").grid(row=2, column=0, sticky="w") 
-    ttk.Entry(adv_frame, textvariable=top_margin_factor_var, width=8).grid(row=2, column=1, sticky="w", padx=(4,0)) 
-    adv_frame.grid_remove() 
-    io_frame = ttk.Frame(main, padding=(0,4)) 
-    io_frame.grid(row=r, column=0, columnspan=4, sticky="we") 
-    ttk.Label(io_frame, text="Save figure to:").grid(row=0, column=0, sticky="w") 
-    ttk.Entry(io_frame, textvariable=save_fig, width=34).grid(row=0, column=1, sticky="we", padx=(4,6)) 
-    def _browse_save_fig(): 
-        path = filedialog.asksaveasfilename( 
-            title="Save figure", 
-            defaultextension=".png", 
-            filetypes=[("PNG","*.png"),("TIFF","*.tif *.tiff"),("SVG","*.svg"),("PDF","*.pdf"),("All files","*.*")] 
-        ) 
-        if path: 
-            save_fig.set(path) 
-    ttk.Button(io_frame, text="Browse…", command=_browse_save_fig).grid(row=0, column=2, sticky="w", padx=(4,0)) 
-    ttk.Label(io_frame, text="Export CSV to:").grid(row=0, column=3, sticky="w") 
-    ttk.Entry(io_frame, textvariable=export_csv, width=34).grid(row=0, column=4, sticky="we", padx=(4,0)) 
-    def _browse_export_csv(): 
-        path = filedialog.asksaveasfilename( 
-            title="Export CSV", 
-            defaultextension=".csv", 
-            filetypes=[("CSV","*.csv"),("All files","*.*")] 
-        ) 
-        if path: 
-            export_csv.set(path) 
-    ttk.Button(io_frame, text="Browse…", command=_browse_export_csv).grid(row=0, column=5, sticky="w", padx=(4,0)) 
-    ttk.Label(io_frame, text="Export Excel (.xlsx) to:").grid(row=1, column=0, sticky="w", pady=(4,0)) 
-    ttk.Entry(io_frame, textvariable=export_xlsx, width=34).grid(row=1, column=1, sticky="we", padx=(4,6), pady=(4,0)) 
-    def _browse_export_xlsx(): 
-        path = filedialog.asksaveasfilename( 
-            title="Save results workbook", 
-            defaultextension=".xlsx", 
-            filetypes=[("Excel workbook","*.xlsx"),("All files","*.*")] 
-        ) 
-        if path: 
-            export_xlsx.set(path) 
-    ttk.Button(io_frame, text="Browse…", command=_browse_export_xlsx).grid(row=1, column=2, sticky="w", padx=(4,0), pady=(4,0)) 
-    for c in range(6): 
-        io_frame.grid_columnconfigure(c, weight=1) 
-    for c in range(4): 
-        main.grid_columnconfigure(c, weight=1) 
-    analysis_cb.bind("<<ComboboxSelected>>", update_posthoc_options) 
-    update_posthoc_options() 
-    on_bracket_mode_changed() 
     root.mainloop() 
 # Main 
 def main(): 
